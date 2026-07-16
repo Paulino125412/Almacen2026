@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { PackingList, Client, Seller, Provider, Article } from '../types';
 import { db, deleteDoc } from '../firebase';
 import { doc } from 'firebase/firestore';
@@ -15,6 +15,7 @@ interface PackingListHistoryProps {
   onSelectPrint: (pl: PackingList) => void;
   onEdit: (pl: PackingList) => void;
   onDuplicate: (pl: PackingList) => void;
+  initialSearchTerm?: string;
 }
 
 export default function PackingListHistory({
@@ -26,9 +27,17 @@ export default function PackingListHistory({
   onRefresh,
   onSelectPrint,
   onEdit,
-  onDuplicate
+  onDuplicate,
+  initialSearchTerm
 }: PackingListHistoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Handle external filtering from global search
+  useEffect(() => {
+    if (initialSearchTerm !== undefined) {
+      setSearchTerm(initialSearchTerm);
+    }
+  }, [initialSearchTerm]);
   const [filterType, setFilterType] = useState<string>('all');
   const [filterClientId, setFilterClientId] = useState<string>('all');
   const [startDate, setStartDate] = useState('');

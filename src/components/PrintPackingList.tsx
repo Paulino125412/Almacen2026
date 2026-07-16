@@ -339,10 +339,11 @@ function SinglePrintPage({
         <div className="flex justify-between items-center mb-6">
           <div className="flex flex-col">
             <h1 className="text-2xl font-display text-app-primary">{title}</h1>
-            <span className="text-[10px] font-mono tracking-wider text-app-text/50">WMS PACKING SYSTEM</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="warehouse-tag">{packingList.packingListNo}</span>
+            <span className="warehouse-tag">
+              GUÍA N°: {packingList.guideNumber || '___________'}
+            </span>
             <span className="text-md font-display text-app-secondary">GRUPO JUDITEX</span>
           </div>
         </div>
@@ -353,6 +354,11 @@ function SinglePrintPage({
             <p className="font-bold">
               CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente de Registro'}</span>
             </p>
+            {packingList.dispatchAddress && (
+              <p className="font-bold mt-1">
+                DESTINO: <span className="font-normal uppercase text-app-text/90">{packingList.dispatchAddress}</span>
+              </p>
+            )}
           </div>
           <div className="text-right space-y-1">
             <p className="font-bold">
@@ -489,7 +495,9 @@ function CortePrintSheet({
           <div className="flex justify-between items-center mb-1">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-display text-app-primary">PACKING LIST</h2>
-              <span className="warehouse-tag">{packingList.packingListNo}</span>
+              <span className="warehouse-tag text-[9px] px-1.5 py-0.5 font-bold uppercase">
+                GUÍA N°: {packingList.guideNumber || '___________'}
+              </span>
             </div>
             <span className="text-xs font-display text-app-secondary">
               GRUPO JUDITEX
@@ -502,6 +510,11 @@ function CortePrintSheet({
               <p className="font-bold">
                 CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente de Registro'}</span>
               </p>
+              {packingList.dispatchAddress && (
+                <p className="font-bold mt-0.5">
+                  DESTINO: <span className="font-normal uppercase text-app-text/90">{packingList.dispatchAddress}</span>
+                </p>
+              )}
               <p className="font-bold mt-0.5">
                 FECHA: <span className="font-normal font-mono text-app-text/80">{packingList.date}</span>
               </p>
@@ -612,7 +625,9 @@ function CortePrintSheet({
           <div className="flex justify-between items-center mb-1">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-display text-app-primary">PACKING LIST</h2>
-              <span className="warehouse-tag">{packingList.packingListNo}</span>
+              <span className="warehouse-tag text-[9px] px-1.5 py-0.5 font-bold uppercase">
+                GUÍA N°: {packingList.guideNumber || '___________'}
+              </span>
             </div>
             <span className="text-xs font-display text-app-secondary">
               GRUPO JUDITEX
@@ -625,6 +640,11 @@ function CortePrintSheet({
               <p className="font-bold">
                 CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente de Registro'}</span>
               </p>
+              {packingList.dispatchAddress && (
+                <p className="font-bold mt-0.5">
+                  DESTINO: <span className="font-normal uppercase text-app-text/90">{packingList.dispatchAddress}</span>
+                </p>
+              )}
               <p className="font-bold mt-0.5">
                 FECHA: <span className="font-normal font-mono text-app-text/80">{packingList.date}</span>
               </p>

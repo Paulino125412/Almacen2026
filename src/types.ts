@@ -78,6 +78,8 @@ export interface PackingList {
   totalMeters: number;
   totalRollsOrCuts: number;
   notes?: string;
+  guideNumber?: string;
+  dispatchAddress?: string;
   importantNotice: string; // Default: "Revisar el rollo antes de cortar y conservar la etiqueta"
   signedBy: {
     name: string;

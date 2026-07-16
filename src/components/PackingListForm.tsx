@@ -78,6 +78,8 @@ export default function PackingListForm({
   const [packingListNo, setPackingListNo] = useState(() => getNextPackingListNo(packingLists));
   const [notes, setNotes] = useState('');
   const [formProviderId, setFormProviderId] = useState('');
+  const [guideNumber, setGuideNumber] = useState('');
+  const [dispatchAddress, setDispatchAddress] = useState('');
   
   // Nested structure state: Article Sections containing multiple rolls
   const [articleGroups, setArticleGroups] = useState<FormArticleGroup[]>([]);
@@ -85,6 +87,75 @@ export default function PackingListForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const [hasCheckedDraft, setHasCheckedDraft] = useState(false);
+  const [showRecoveryPrompt, setShowRecoveryPrompt] = useState(false);
+  const [draftData, setDraftData] = useState<any>(null);
+
+  // Check for saved draft on mount (only if not editing or duplicating)
+  useEffect(() => {
+    if (!editingPackingList && !isDuplicate) {
+      try {
+        const saved = localStorage.getItem("texflow_draft_packinglist");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && (parsed.clientId || parsed.sellerId || parsed.notes || (parsed.articleGroups && parsed.articleGroups.length > 0 && parsed.articleGroups.some((g: any) => g.articleId || g.rolls?.length > 0)))) {
+            setDraftData(parsed);
+            setShowRecoveryPrompt(true);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("Error reading draft from localStorage", e);
+      }
+    }
+    setHasCheckedDraft(true);
+  }, [editingPackingList, isDuplicate]);
+
+  const handleRecoverDraft = () => {
+    if (draftData) {
+      if (draftData.packingType) setPackingType(draftData.packingType);
+      if (draftData.clientId) setClientId(draftData.clientId);
+      if (draftData.sellerId) setSellerId(draftData.sellerId);
+      if (draftData.docDate) setDocDate(draftData.docDate);
+      if (draftData.notes) setNotes(draftData.notes);
+      if (draftData.formProviderId) setFormProviderId(draftData.formProviderId);
+      if (draftData.articleGroups) setArticleGroups(draftData.articleGroups);
+      if (draftData.guideNumber) setGuideNumber(draftData.guideNumber);
+      if (draftData.dispatchAddress) setDispatchAddress(draftData.dispatchAddress);
+    }
+    setShowRecoveryPrompt(false);
+    setHasCheckedDraft(true);
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem("texflow_draft_packinglist");
+    setShowRecoveryPrompt(false);
+    setHasCheckedDraft(true);
+  };
+
+  // Auto-save form draft to localStorage when states change
+  useEffect(() => {
+    if (hasCheckedDraft && !editingPackingList && !isDuplicate) {
+      const hasContent = clientId || notes.trim() || formProviderId || guideNumber.trim() || dispatchAddress.trim() || (articleGroups.length > 1 || (articleGroups[0] && (articleGroups[0].articleId || articleGroups[0].rolls.length > 0)));
+      if (hasContent) {
+        const draftObj = {
+          packingType,
+          clientId,
+          sellerId,
+          docDate,
+          notes,
+          formProviderId,
+          articleGroups,
+          guideNumber,
+          dispatchAddress
+        };
+        localStorage.setItem("texflow_draft_packinglist", JSON.stringify(draftObj));
+      } else {
+        localStorage.removeItem("texflow_draft_packinglist");
+      }
+    }
+  }, [hasCheckedDraft, packingType, clientId, sellerId, docDate, notes, formProviderId, articleGroups, editingPackingList, isDuplicate, guideNumber, dispatchAddress]);
 
   // Propagate formProviderId to all article groups and reset incompatible ones
   useEffect(() => {
@@ -120,6 +191,8 @@ export default function PackingListForm({
       setPackingType(editingPackingList.type as any);
       setClientId(editingPackingList.clientId);
       setSellerId(editingPackingList.sellerId);
+      setGuideNumber(editingPackingList.guideNumber || '');
+      setDispatchAddress(editingPackingList.dispatchAddress || '');
       
       // If duplicating, keep current date and get next sequential PL No. Otherwise, keep the original ones.
       if (isDuplicate) {
@@ -188,6 +261,8 @@ export default function PackingListForm({
       setPackingListNo(getNextPackingListNo(packingLists));
       setNotes('');
       setFormProviderId('');
+      setGuideNumber('');
+      setDispatchAddress('');
       setArticleGroups([
         {
           id: `group-${Date.now()}-${Math.random()}`,
@@ -208,6 +283,20 @@ export default function PackingListForm({
     return inventory.filter(r => r.currentMeters > 0);
   }, [inventory]);
 
+  const handleClientChange = (newClientId: string) => {
+    setClientId(newClientId);
+    if (newClientId) {
+      const selectedClient = clients.find(c => c.id === newClientId);
+      if (selectedClient && selectedClient.address) {
+        setDispatchAddress(selectedClient.address);
+      } else {
+        setDispatchAddress('');
+      }
+    } else {
+      setDispatchAddress('');
+    }
+  };
+
   // Save new client on the fly
   const handleAddNewClient = async (name: string, fields: Record<string, string>): Promise<string> => {
     try {
@@ -221,6 +310,9 @@ export default function PackingListForm({
       };
       const docRef = await addDoc(collection(db, 'clients'), newClientData);
       await onRefresh(); // Refresh data to update parent's clients list
+      if (newClientData.address) {
+        setDispatchAddress(newClientData.address);
+      }
       return docRef.id;
     } catch (err) {
       console.error("Error creating client on the fly:", err);
@@ -580,8 +672,8 @@ export default function PackingListForm({
   };
 
   // Submit and Save
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setError(null);
     setSuccess(null);
 
@@ -600,6 +692,18 @@ export default function PackingListForm({
     }
     if (!packingListNo.trim()) {
       setError('El número de packing list es obligatorio.');
+      return;
+    }
+
+    const isDuplicatePLNo = packingLists.some(pl => {
+      if (editingPackingList && !isDuplicate && pl.id === editingPackingList.id) {
+        return false;
+      }
+      return pl.packingListNo.trim().toLowerCase() === packingListNo.trim().toLowerCase();
+    });
+
+    if (isDuplicatePLNo) {
+      setError(`Ya existe un Packing List con el número "${packingListNo.trim()}". Use un número diferente.`);
       return;
     }
 
@@ -721,6 +825,8 @@ export default function PackingListForm({
           totalMeters: totalMetersValue,
           totalRollsOrCuts: totalRollsValue,
           notes: notes.trim(),
+          guideNumber: guideNumber.trim(),
+          dispatchAddress: dispatchAddress.trim(),
           signedBy: {
             ...editingPackingList.signedBy,
             date: docDate
@@ -752,6 +858,7 @@ export default function PackingListForm({
 
         await onRefresh();
         setSuccess(`¡Packing List ${updatedPL.packingListNo} modificado correctamente!`);
+        localStorage.removeItem("texflow_draft_packinglist");
         
         // Cargamos vista de impresión/PDF inmediatamente
         onPackingListCreated(updatedPL);
@@ -770,6 +877,8 @@ export default function PackingListForm({
           totalMeters: totalMetersValue,
           totalRollsOrCuts: totalRollsValue,
           notes: notes.trim(),
+          guideNumber: guideNumber.trim(),
+          dispatchAddress: dispatchAddress.trim(),
           importantNotice: "Revisar el rollo antes de cortar y conservar la etiqueta.",
           signedBy: {
             name: "",
@@ -803,6 +912,7 @@ export default function PackingListForm({
 
         await onRefresh();
         setSuccess(`¡Packing List ${newPL.packingListNo} registrado correctamente!`);
+        localStorage.removeItem("texflow_draft_packinglist");
         
         // Cargamos vista de impresión/PDF inmediatamente
         onPackingListCreated(newPL);
@@ -832,8 +942,82 @@ export default function PackingListForm({
     }
   };
 
+  // Global Keyboard Shortcuts (Ctrl+Enter to Save, Escape to close draft prompt modal)
+  useEffect(() => {
+    const handleFormKeyDown = (e: KeyboardEvent) => {
+      const isEnter = e.key === 'Enter';
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+
+      if (isEnter && isCtrlOrMeta) {
+        e.preventDefault();
+        handleSubmit();
+      }
+
+      if (e.key === 'Escape') {
+        if (showRecoveryPrompt) {
+          e.preventDefault();
+          handleDiscardDraft();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleFormKeyDown);
+    return () => window.removeEventListener('keydown', handleFormKeyDown);
+  }, [handleSubmit, showRecoveryPrompt]);
+
   return (
     <div className="ticket-perforated p-6 shadow-xs">
+      {showRecoveryPrompt && (
+        <div className="fixed inset-0 bg-app-bg/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in no-print">
+          <div className="bg-app-surface border border-app-border rounded-lg w-full max-w-md shadow-xl overflow-hidden animate-slide-up text-app-text">
+            
+            {/* Header */}
+            <div className="bg-amber-50 dark:bg-amber-950/20 border-b border-amber-100 dark:border-amber-950/40 p-5 flex items-center gap-3">
+              <div className="bg-amber-500 text-white p-2 rounded">
+                <ShoppingBag size={18} />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider">Borrador Detectado</h4>
+                <p className="text-[9px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mt-0.5">DESPACHO SIN GUARDAR</p>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <p className="text-xs font-medium leading-relaxed text-app-text/80">
+                Se encontró un despacho sin guardar de una sesión anterior. ¿Deseas recuperar este borrador para continuar trabajando en él?
+              </p>
+              
+              <div className="bg-app-bg border border-app-border rounded p-3 text-[10px] space-y-1 text-app-text/70">
+                <div>• <strong>Cliente:</strong> {clients.find(c => c.id === draftData?.clientId)?.name || 'No especificado'}</div>
+                <div>• <strong>Artículos:</strong> {draftData?.articleGroups?.length || 0} sección(es) de tela</div>
+                <div>• <strong>Rollos/Cortes:</strong> {draftData?.articleGroups?.reduce((acc: number, g: any) => acc + (g.rolls?.length || 0), 0) || 0} unidades</div>
+                {draftData?.notes && (
+                  <div className="truncate">• <strong>Notas:</strong> {draftData.notes}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="bg-app-bg px-6 py-4 border-t border-app-border flex justify-end gap-3 shrink-0">
+              <button
+                onClick={handleDiscardDraft}
+                className="px-3 py-1.5 hover:bg-red-50 hover:text-red-600 border border-app-border rounded text-xs font-bold transition cursor-pointer"
+              >
+                Descartar
+              </button>
+              <button
+                onClick={handleRecoverDraft}
+                className="px-3 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                Recuperar Despacho
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap justify-between items-start md:items-center gap-4 border-b border-app-border pb-4 mb-6">
         <div>
           <h2 className="text-sm font-bold text-app-text flex items-center gap-2">
@@ -981,7 +1165,7 @@ export default function PackingListForm({
 
           <ClientSellerSelector
             clientId={clientId}
-            setClientId={setClientId}
+            setClientId={handleClientChange}
             clients={clients}
             onAddNewClient={handleAddNewClient}
             sellerId={sellerId}
@@ -992,6 +1176,32 @@ export default function PackingListForm({
             setFormProviderId={setFormProviderId}
             providers={providers}
           />
+        </div>
+
+        {/* Nuevos campos: Número de Guía y Dirección de Despacho */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-app-bg/50 p-4 border border-app-border rounded-xl mt-4">
+          <div className="md:col-span-1">
+            <label className="block text-xs font-bold text-app-text/80 mb-1">Número de Guía</label>
+            <input
+              type="text"
+              value={guideNumber}
+              onChange={e => setGuideNumber(e.target.value)}
+              placeholder="Ej. G001-000234 (Opcional)"
+              className="w-full px-3 py-2 border border-app-border rounded-lg text-sm text-app-text focus:ring-2 focus:ring-app-primary bg-app-surface font-mono"
+              id="input-pl-guide"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-bold text-app-text/80 mb-1">Dirección de Despacho</label>
+            <input
+              type="text"
+              value={dispatchAddress}
+              onChange={e => setDispatchAddress(e.target.value)}
+              placeholder="Dirección donde se entregará la mercadería (Sugerida del Cliente, Editable)"
+              className="w-full px-3 py-2 border border-app-border rounded-lg text-sm text-app-text focus:ring-2 focus:ring-app-primary bg-app-surface"
+              id="input-pl-dispatch-address"
+            />
+          </div>
         </div>
 
         {/* Notas / Observaciones */}
@@ -1048,7 +1258,10 @@ export default function PackingListForm({
         </div>
 
         {/* Submit Actions */}
-        <div className="flex justify-end items-center gap-3 border-t border-app-border pt-4">
+        <div className="flex justify-end items-center gap-4 border-t border-app-border pt-4 flex-wrap">
+          <span className="text-[10px] text-app-text/45 font-semibold font-mono no-print">
+            Atajo: <span className="bg-app-bg border border-app-border rounded px-1.5 py-0.5 font-bold">Ctrl + Enter</span> para guardar
+          </span>
           {editingPackingList && (
             <button
               type="button"

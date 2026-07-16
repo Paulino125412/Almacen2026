@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Client, Seller, Provider, Article } from '../types';
 import { db, addDoc, updateDoc, deleteDoc } from '../firebase';
 import { collection, doc } from 'firebase/firestore';
@@ -10,6 +10,8 @@ interface CatalogManagerProps {
   providers: Provider[];
   articles: Article[];
   onRefresh: () => Promise<void>;
+  initialTab?: CatalogTab;
+  initialSearchQuery?: string;
 }
 
 type CatalogTab = 'providers' | 'articles' | 'clients' | 'sellers';
@@ -19,13 +21,28 @@ export default function CatalogManager({
   sellers,
   providers,
   articles,
-  onRefresh
+  onRefresh,
+  initialTab,
+  initialSearchQuery
 }: CatalogManagerProps) {
   const [activeTab, setActiveTab] = useState<CatalogTab>('providers');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Handle external navigation/filtering from global search
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (initialSearchQuery !== undefined) {
+      setSearchQuery(initialSearchQuery);
+    }
+  }, [initialSearchQuery]);
 
   // Form States
   // Provider Form

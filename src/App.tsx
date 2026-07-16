@@ -27,7 +27,8 @@ import {
   CloudLightning,
   RefreshCw,
   Sun,
-  Moon
+  Moon,
+  Search
 } from 'lucide-react';
 
 // Components
@@ -36,6 +37,7 @@ import PackingListHistory from './components/PackingListHistory';
 import InventoryManager from './components/InventoryManager';
 import CatalogManager from './components/CatalogManager';
 import PrintPackingList from './components/PrintPackingList';
+import QuickSearchPalette from './components/QuickSearchPalette';
 
 type AppTab = 'generate' | 'history' | 'inventory' | 'catalogs';
 
@@ -69,6 +71,51 @@ export default function App() {
   // Edit & Duplicate States
   const [editingPackingList, setEditingPackingList] = useState<PackingList | null>(null);
   const [isDuplicate, setIsDuplicate] = useState(false);
+
+  // Quick Search States
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [catalogInitialTab, setCatalogInitialTab] = useState<'clients' | 'articles' | 'providers' | 'sellers' | undefined>(undefined);
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+
+  // Handle manual sidebar tab changes (clears search query preset)
+  const handleTabChange = (tab: AppTab) => {
+    setCatalogInitialTab(undefined);
+    setCatalogSearchQuery('');
+    setHistorySearchQuery('');
+    setActiveTab(tab);
+  };
+
+  // Keyboard shortcut for Ctrl+K and Escape to close modals/views
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(prev => !prev);
+      } else if (e.key === 'Escape') {
+        setIsSearchOpen(false);
+        setSelectedPrintList(null);
+        setShowConnectionErrorModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleSelectSearchResult = (type: 'client' | 'article' | 'packing_list', item: any) => {
+    if (type === 'client') {
+      setCatalogInitialTab('clients');
+      setCatalogSearchQuery(item.name);
+      setActiveTab('catalogs');
+    } else if (type === 'article') {
+      setCatalogInitialTab('articles');
+      setCatalogSearchQuery(item.name);
+      setActiveTab('catalogs');
+    } else if (type === 'packing_list') {
+      setHistorySearchQuery(item.packingListNo);
+      setActiveTab('history');
+    }
+  };
 
   // loading state
   const [loading, setLoading] = useState(true);
@@ -297,6 +344,7 @@ export default function App() {
               setIsDuplicate(true);
               setActiveTab('generate');
             }}
+            initialSearchTerm={historySearchQuery}
           />
         );
       case 'inventory':
@@ -317,6 +365,8 @@ export default function App() {
             providers={providers}
             articles={articles}
             onRefresh={handleForceRefresh}
+            initialTab={catalogInitialTab}
+            initialSearchQuery={catalogSearchQuery}
           />
         );
       default:
@@ -370,7 +420,7 @@ export default function App() {
           </div>
 
           <button
-            onClick={() => setActiveTab('generate')}
+            onClick={() => handleTabChange('generate')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-xs font-medium transition duration-150 cursor-pointer ${
               activeTab === 'generate'
                 ? 'bg-app-primary text-white border-l-2 border-app-primary font-semibold shadow-xs'
@@ -383,7 +433,7 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => setActiveTab('history')}
+            onClick={() => handleTabChange('history')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-xs font-medium transition duration-150 cursor-pointer ${
               activeTab === 'history'
                 ? 'bg-app-primary text-white border-l-2 border-app-primary font-semibold shadow-xs'
@@ -396,7 +446,7 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => setActiveTab('inventory')}
+            onClick={() => handleTabChange('inventory')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-xs font-medium transition duration-150 cursor-pointer ${
               activeTab === 'inventory'
                 ? 'bg-app-primary text-white border-l-2 border-app-primary font-semibold shadow-xs'
@@ -409,7 +459,7 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => setActiveTab('catalogs')}
+            onClick={() => handleTabChange('catalogs')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-xs font-medium transition duration-150 cursor-pointer ${
               activeTab === 'catalogs'
                 ? 'bg-app-primary text-white border-l-2 border-app-primary font-semibold shadow-xs'
@@ -480,6 +530,17 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Quick Search Trigger Button */}
+            <button
+              onClick={() => setIsSearchOpen(true)}
+              className="p-1.5 hover:bg-app-bg text-app-text/70 hover:text-app-text border border-app-border rounded transition flex items-center justify-center cursor-pointer gap-1.5 px-2.5"
+              title="Buscar (Ctrl+K)"
+              id="global-search-trigger-btn"
+            >
+              <Search size={13} />
+              <span className="text-[10px] font-bold text-app-text/50 hidden md:inline font-mono">Ctrl+K</span>
+            </button>
+
             {/* Theme Toggle Button */}
             <button
               onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
@@ -540,6 +601,16 @@ export default function App() {
           onClose={() => setSelectedPrintList(null)}
         />
       )}
+
+      {/* Quick Search Global Command Palette */}
+      <QuickSearchPalette
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        clients={clients}
+        articles={articles}
+        packingLists={packingLists}
+        onSelectResult={handleSelectSearchResult}
+      />
 
       {/* Cloud Connection Error / Timeout Modal Overlay */}
       {showConnectionErrorModal && (
