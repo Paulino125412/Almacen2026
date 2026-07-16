@@ -1,0 +1,1082 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Client, Seller, Provider, Article, RollItem, PackingList, PackingListItem } from '../types';
+import { db, addDoc, updateDoc } from '../firebase';
+import { collection, doc } from 'firebase/firestore';
+import { Plus, Trash2, Calendar, User, ShoppingBag, CheckCircle2, ChevronRight, Hash, Ruler } from 'lucide-react';
+import SearchableCombobox from './SearchableCombobox';
+import { FormRollEntry, FormArticleGroup } from './packing-list-form/types';
+import { resolveColumnsForText } from './packing-list-form/ExcelPasteParser';
+import ClientSellerSelector from './packing-list-form/ClientSellerSelector';
+import ArticleGroupSection from './packing-list-form/ArticleGroupSection';
+
+interface PackingListFormProps {
+  clients: Client[];
+  sellers: Seller[];
+  providers: Provider[];
+  articles: Article[];
+  inventory: RollItem[];
+  packingLists: PackingList[];
+  onRefresh: () => Promise<void>;
+  onPackingListCreated: (pl: PackingList) => void;
+  currentOperator: string;
+  editingPackingList?: PackingList | null;
+  isDuplicate?: boolean;
+  onCancelEdit?: () => void;
+}
+
+// Helper to calculate consecutive, non-repeating Packing List numbers
+const getNextPackingListNo = (existingLists: PackingList[]) => {
+  if (!existingLists || existingLists.length === 0) {
+    return 'PL-0001';
+  }
+  
+  let maxNum = 0;
+  existingLists.forEach(pl => {
+    const match = pl.packingListNo.match(/^PL-(\d+)$/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    } else {
+      const digitsMatch = pl.packingListNo.match(/\d+/);
+      if (digitsMatch) {
+        const num = parseInt(digitsMatch[0], 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+  });
+  
+  if (maxNum === 0) {
+    maxNum = existingLists.length;
+  }
+  
+  const nextNum = maxNum + 1;
+  return `PL-${String(nextNum).padStart(4, '0')}`;
+};
+
+export default function PackingListForm({
+  clients,
+  sellers,
+  providers,
+  articles,
+  inventory,
+  packingLists,
+  onRefresh,
+  onPackingListCreated,
+  currentOperator,
+  editingPackingList = null,
+  isDuplicate = false,
+  onCancelEdit
+}: PackingListFormProps) {
+  const [packingType, setPackingType] = useState<'nuevo' | 'antiguo' | 'corte'>('nuevo');
+  const [clientId, setClientId] = useState('');
+  const [sellerId, setSellerId] = useState('');
+  const [docDate, setDocDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [packingListNo, setPackingListNo] = useState(() => getNextPackingListNo(packingLists));
+  const [notes, setNotes] = useState('');
+  const [formProviderId, setFormProviderId] = useState('');
+  
+  // Nested structure state: Article Sections containing multiple rolls
+  const [articleGroups, setArticleGroups] = useState<FormArticleGroup[]>([]);
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Propagate formProviderId to all article groups and reset incompatible ones
+  useEffect(() => {
+    if (formProviderId) {
+      setArticleGroups(prev => prev.map(g => {
+        if (g.providerId !== formProviderId) {
+          const matchingArticles = articles.filter(a => a.providerId === formProviderId);
+          return {
+            ...g,
+            providerId: formProviderId,
+            articleId: matchingArticles.length === 1 ? matchingArticles[0].id : '',
+            lot: '',
+            partida: '',
+            tono: '',
+            rolls: []
+          };
+        }
+        return g;
+      }));
+    }
+  }, [formProviderId, articles]);
+
+  // Generate unique correlative document number
+  useEffect(() => {
+    if (!editingPackingList || isDuplicate) {
+      setPackingListNo(getNextPackingListNo(packingLists));
+    }
+  }, [packingLists, editingPackingList, isDuplicate]);
+
+  // Prefill form for Editing / Duplicating
+  useEffect(() => {
+    if (editingPackingList) {
+      setPackingType(editingPackingList.type as any);
+      setClientId(editingPackingList.clientId);
+      setSellerId(editingPackingList.sellerId);
+      
+      // If duplicating, keep current date and get next sequential PL No. Otherwise, keep the original ones.
+      if (isDuplicate) {
+        setDocDate(new Date().toISOString().split('T')[0]);
+        setPackingListNo(getNextPackingListNo(packingLists));
+      } else {
+        setDocDate(editingPackingList.date);
+        setPackingListNo(editingPackingList.packingListNo);
+      }
+      
+      setNotes(editingPackingList.notes || '');
+      
+      // Determine formProviderId from the first item if available
+      if (editingPackingList.items && editingPackingList.items.length > 0) {
+        setFormProviderId(editingPackingList.items[0].providerId);
+      } else {
+        setFormProviderId('');
+      }
+
+      // Group items by providerId + articleId
+      const groupsMap: Record<string, FormArticleGroup> = {};
+      editingPackingList.items.forEach(item => {
+        const groupKey = `${item.providerId}-${item.articleId}`;
+        if (!groupsMap[groupKey]) {
+          groupsMap[groupKey] = {
+            id: `group-prefill-${item.providerId}-${item.articleId}-${Math.random()}`,
+            providerId: item.providerId,
+            articleId: item.articleId,
+            lot: item.lot || '',
+            partida: item.partida || '',
+            tono: item.tono || '',
+            source: item.rollId ? 'inventory' : 'custom',
+            rolls: [],
+            hasProcessedExcel: false
+          };
+        }
+        
+        // Find max meters (current inventory stock + the meters allocated to this PL item if editing)
+        const rollInInv = item.rollId ? inventory.find(inv => inv.id === item.rollId) : null;
+        let maxMeters: number | undefined;
+        if (item.rollId) {
+          maxMeters = (rollInInv?.currentMeters || 0) + (isDuplicate ? 0 : item.meters);
+        }
+
+        groupsMap[groupKey].rolls.push({
+          id: item.id || `roll-prefill-${Math.random()}`,
+          rollId: item.rollId,
+          rollNumber: item.rollNumber,
+          meters: item.meters,
+          maxMeters,
+          lot: item.lot,
+          partida: item.partida,
+          tono: item.tono,
+          width: item.width || '',
+          weight: item.weight || ''
+        });
+      });
+
+      setArticleGroups(Object.values(groupsMap));
+    } else {
+      // Clear form when editingPackingList is null
+      setPackingType('nuevo');
+      setClientId('');
+      setSellerId('');
+      setDocDate(new Date().toISOString().split('T')[0]);
+      setPackingListNo(getNextPackingListNo(packingLists));
+      setNotes('');
+      setFormProviderId('');
+      setArticleGroups([
+        {
+          id: `group-${Date.now()}-${Math.random()}`,
+          providerId: '',
+          articleId: '',
+          lot: '',
+          partida: '',
+          tono: '',
+          source: 'custom',
+          rolls: []
+        }
+      ]);
+    }
+  }, [editingPackingList, isDuplicate, packingLists]);
+
+  // Filter available inventory rolls
+  const availableRolls = useMemo(() => {
+    return inventory.filter(r => r.currentMeters > 0);
+  }, [inventory]);
+
+  // Save new client on the fly
+  const handleAddNewClient = async (name: string, fields: Record<string, string>): Promise<string> => {
+    try {
+      const newClientData = {
+        name,
+        dni: fields.dni || '',
+        email: fields.email || '',
+        phone: fields.phone || '',
+        address: fields.address || '',
+        createdAt: new Date().toISOString()
+      };
+      const docRef = await addDoc(collection(db, 'clients'), newClientData);
+      await onRefresh(); // Refresh data to update parent's clients list
+      return docRef.id;
+    } catch (err) {
+      console.error("Error creating client on the fly:", err);
+      throw new Error("No se pudo registrar el cliente. Verifique su conexión.");
+    }
+  };
+
+  // Save new seller on the fly
+  const handleAddNewSeller = async (name: string, fields: Record<string, string>): Promise<string> => {
+    try {
+      const newSellerData = {
+        name,
+        email: fields.email || '',
+        phone: fields.phone || '',
+        createdAt: new Date().toISOString()
+      };
+      const docRef = await addDoc(collection(db, 'sellers'), newSellerData);
+      await onRefresh(); // Refresh data to update parent's sellers list
+      return docRef.id;
+    } catch (err) {
+      console.error("Error creating seller on the fly:", err);
+      throw new Error("No se pudo registrar el vendedor. Verifique su conexión.");
+    }
+  };
+
+  // Initial group setup (start with 1 empty article group)
+  useEffect(() => {
+    if (articleGroups.length === 0) {
+      const activeProvId = formProviderId || '';
+      const matchingArticles = articles.filter(a => a.providerId === activeProvId);
+      const defaultArticleId = matchingArticles.length === 1 ? matchingArticles[0].id : '';
+
+      const newGroup: FormArticleGroup = {
+        id: `group-${Date.now()}-${Math.random()}`,
+        providerId: activeProvId,
+        articleId: defaultArticleId,
+        lot: '',
+        partida: '',
+        tono: '',
+        source: 'custom',
+        rolls: []
+      };
+      setArticleGroups([newGroup]);
+    }
+  }, []);
+
+  const handleAddArticleGroup = () => {
+    const activeProvId = formProviderId || '';
+    const matchingArticles = articles.filter(a => a.providerId === activeProvId);
+    const defaultArticleId = matchingArticles.length === 1 ? matchingArticles[0].id : '';
+
+    const newGroup: FormArticleGroup = {
+      id: `group-${Date.now()}-${Math.random()}`,
+      providerId: activeProvId,
+      articleId: defaultArticleId,
+      lot: '',
+      partida: '',
+      tono: '',
+      source: 'custom',
+      rolls: []
+    };
+    setArticleGroups(prev => [...prev, newGroup]);
+  };
+
+  const handleRemoveArticleGroup = (groupId: string) => {
+    if (articleGroups.length <= 1) {
+      alert('Debe incluir al menos un artículo en el Packing List.');
+      return;
+    }
+    setArticleGroups(prev => prev.filter(g => g.id !== groupId));
+  };
+
+  const handleRollKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, groupId: string, rollIndex: number) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddRollToGroup(groupId);
+      setTimeout(() => {
+        const nextInput = document.getElementById(`meters-${groupId}-${rollIndex + 1}`) as HTMLInputElement;
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.select();
+        }
+      }, 80);
+    }
+  };
+
+  const handleAddRollToGroup = (groupId: string) => {
+    setArticleGroups(prev => prev.map(g => {
+      if (g.id === groupId) {
+        // Suggest next roll or cut number
+        const rollsCount = g.rolls.length;
+        let nextRollNumber = packingType === 'nuevo' ? `ROLLO-${rollsCount + 1}` : `CORTE-${rollsCount + 1}`;
+        
+        const lastRollNum = g.rolls[rollsCount - 1]?.rollNumber || '';
+        if (lastRollNum) {
+          const match = lastRollNum.match(/^(.*?)(\d+)$/);
+          if (match) {
+            const prefix = match[1];
+            const num = parseInt(match[2], 10) + 1;
+            nextRollNumber = `${prefix}${num}`;
+          }
+        }
+
+        return {
+          ...g,
+          rolls: [
+            ...g.rolls,
+            {
+              id: `roll-${Date.now()}-${Math.random()}`,
+              rollNumber: nextRollNumber,
+              meters: packingType === 'nuevo' ? 50 : 0,
+              lot: g.lot || '',
+              partida: g.partida || '',
+              tono: g.tono || '',
+              width: '',
+              weight: ''
+            }
+          ]
+        };
+      }
+      return g;
+    }));
+  };
+
+  const handleRemoveRollFromGroup = (groupId: string, rollId: string) => {
+    setArticleGroups(prev => prev.map(g => {
+      if (g.id === groupId) {
+        return {
+          ...g,
+          rolls: g.rolls.filter(r => r.id !== rollId)
+        };
+      }
+      return g;
+    }));
+  };
+
+  const handleProcessUnifiedInput = (groupId: string, textToProcess?: string) => {
+    const text = (textToProcess !== undefined ? textToProcess : '').trim();
+    if (!text) return;
+
+    // Check if the provider has specific fields configured
+    const group = articleGroups.find(g => g.id === groupId);
+    if (!group) return;
+    const pConfig = providers.find(p => p.id === group.providerId);
+
+    const resolution = resolveColumnsForText(text, pConfig);
+    const {
+      metersColIdx,
+      rollColIdx,
+      lotColIdx,
+      partidaColIdx,
+      tonoColIdx,
+      widthColIdx,
+      weightColIdx,
+      startLineIndex,
+      lines,
+      splitIntoColumns
+    } = resolution;
+
+    const parseMetersVal = (val: string): number | null => {
+      if (!val) return null;
+      let clean = val.trim();
+      // Remove trailing units like m, mts, mt, etc.
+      clean = clean.replace(/m|mts|mt/i, '').trim();
+      if (/[a-zA-Z]/g.test(clean)) {
+        return null;
+      }
+      clean = clean.replace(',', '.');
+      const n = parseFloat(clean);
+      return isNaN(n) ? null : n;
+    };
+
+    interface ParsedRow {
+      rollNumber?: string;
+      meters: number;
+      lot?: string;
+      partida?: string;
+      tono?: string;
+      width?: string;
+      weight?: string;
+    }
+
+    const parsedRows: ParsedRow[] = [];
+
+    for (let i = startLineIndex; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const cols = splitIntoColumns(line);
+      if (cols.length === 0) continue;
+
+      let rowMeters: number | null = null;
+      let rowRollNum = '';
+      let rowLot = '';
+      let rowPartida = '';
+      let rowTono = '';
+      let rowWidth = '';
+      let rowWeight = '';
+
+      if (metersColIdx !== -1 && cols[metersColIdx] !== undefined) {
+        rowMeters = parseMetersVal(cols[metersColIdx]);
+        if (rollColIdx !== -1 && cols[rollColIdx]) rowRollNum = cols[rollColIdx];
+        if (lotColIdx !== -1 && cols[lotColIdx]) rowLot = cols[lotColIdx];
+        if (partidaColIdx !== -1 && cols[partidaColIdx]) rowPartida = cols[partidaColIdx];
+        if (tonoColIdx !== -1 && cols[tonoColIdx]) rowTono = cols[tonoColIdx];
+        if (widthColIdx !== -1 && cols[widthColIdx]) rowWidth = cols[widthColIdx].replace(/m|mts|mt/i, '').trim();
+        if (weightColIdx !== -1 && cols[weightColIdx]) rowWeight = cols[weightColIdx].replace(/kg|kgs/i, '').trim();
+      }
+
+      if (rowMeters !== null && rowMeters > 0) {
+        parsedRows.push({
+          rollNumber: rowRollNum || undefined,
+          meters: Number(rowMeters.toFixed(2)),
+          lot: rowLot || undefined,
+          partida: rowPartida || undefined,
+          tono: rowTono || undefined,
+          width: rowWidth || undefined,
+          weight: rowWeight || undefined
+        });
+      }
+    }
+
+    if (parsedRows.length === 0) {
+      alert("No se encontraron metrajes válidos. Ingrese un número o pegue una tabla desde Excel.");
+      return;
+    }
+
+    setArticleGroups(prev => prev.map(g => {
+      if (g.id === groupId) {
+        let rollsCount = g.rolls.length;
+        const newRolls = [...g.rolls];
+        
+        let lotUpdated = g.lot;
+        let partidaUpdated = g.partida;
+        let tonoUpdated = g.tono;
+
+        const isExcelOrBulk = lines.length > 1 || text.includes('\t') || text.includes(';') || /\s{2,}/.test(text);
+
+        parsedRows.forEach(row => {
+          if (row.lot && pConfig?.hasLot) lotUpdated = row.lot;
+          if (row.partida && pConfig?.hasPartida) partidaUpdated = row.partida;
+          if (row.tono && pConfig?.hasTono) tonoUpdated = row.tono;
+
+          let finalRollNum = row.rollNumber;
+          if (!finalRollNum) {
+            finalRollNum = packingType === 'corte' ? `CORTE-${rollsCount + 1}` : `ROLLO-${rollsCount + 1}`;
+            const lastRollNum = newRolls[newRolls.length - 1]?.rollNumber || '';
+            if (lastRollNum) {
+              const match = lastRollNum.match(/^(.*?)(\d+)$/);
+              if (match) {
+                const prefix = match[1];
+                const num = parseInt(match[2], 10) + 1;
+                finalRollNum = `${prefix}${num}`;
+              }
+            }
+          }
+
+          newRolls.push({
+            id: `roll-${Date.now()}-${Math.random()}-${rollsCount}`,
+            rollNumber: finalRollNum,
+            meters: row.meters,
+            lot: row.lot || g.lot || '',
+            partida: row.partida || g.partida || '',
+            tono: row.tono || g.tono || '',
+            width: row.width || '',
+            weight: row.weight || ''
+          });
+          rollsCount++;
+        });
+
+        return {
+          ...g,
+          lot: isExcelOrBulk ? '' : g.lot,
+          partida: isExcelOrBulk ? '' : g.partida,
+          tono: isExcelOrBulk ? '' : g.tono,
+          hasProcessedExcel: isExcelOrBulk ? true : g.hasProcessedExcel,
+          rolls: newRolls
+        };
+      }
+      return g;
+    }));
+  };
+
+  const handleGroupFieldChange = (groupId: string, field: keyof FormArticleGroup, value: any) => {
+    setArticleGroups(prev => prev.map(g => {
+      if (g.id === groupId) {
+        if (field === 'providerId') {
+          const matchingArticles = articles.filter(a => a.providerId === value);
+          const nextArticleId = matchingArticles[0]?.id || '';
+          return {
+            ...g,
+            providerId: value,
+            articleId: nextArticleId,
+            lot: '',
+            partida: '',
+            tono: '',
+            hasProcessedExcel: false,
+            rolls: []
+          };
+        }
+        if (field === 'articleId') {
+          return {
+            ...g,
+            articleId: value,
+            hasProcessedExcel: false,
+            rolls: []
+          };
+        }
+        if (field === 'source') {
+          // Reset roll configuration with empty rolls array
+          return {
+            ...g,
+            source: value,
+            hasProcessedExcel: false,
+            rolls: []
+          };
+        }
+        
+        // Master inputs lot, partida, and tono are updated here and will only be applied to newly created rolls.
+        return { ...g, [field]: value };
+      }
+      return g;
+    }));
+  };
+
+  const handleRollFieldChange = (groupId: string, rollId: string, field: keyof FormRollEntry, value: any) => {
+    setArticleGroups(prev => prev.map(g => {
+      if (g.id === groupId) {
+        return {
+          ...g,
+          rolls: g.rolls.map(r => {
+            if (r.id === rollId) {
+              if (field === 'rollId') {
+                const warehouseRoll = inventory.find(wr => wr.id === value);
+                if (warehouseRoll) {
+                  return {
+                    ...r,
+                    rollId: warehouseRoll.id,
+                    rollNumber: warehouseRoll.rollNumber,
+                    meters: warehouseRoll.currentMeters,
+                    maxMeters: warehouseRoll.currentMeters
+                  };
+                }
+              }
+              return { ...r, [field]: value };
+            }
+            return r;
+          })
+        };
+      }
+      return g;
+    }));
+  };
+
+  const getProviderConfig = (providerId: string) => {
+    return providers.find(p => p.id === providerId) || null;
+  };
+
+  // Submit and Save
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    // Header validations
+    if (!clientId) {
+      setError('Por favor seleccione el Cliente.');
+      return;
+    }
+    if (!sellerId) {
+      setError('Por favor seleccione el Vendedor.');
+      return;
+    }
+    if (!formProviderId) {
+      setError('Por favor seleccione el Proveedor.');
+      return;
+    }
+    if (!packingListNo.trim()) {
+      setError('El número de packing list es obligatorio.');
+      return;
+    }
+
+    // Article groups validations
+    for (let gIdx = 0; gIdx < articleGroups.length; gIdx++) {
+      const g = articleGroups[gIdx];
+      if (!g.articleId) {
+        setError(`Artículo #${gIdx + 1}: Debe seleccionar un Artículo.`);
+        return;
+      }
+
+      if (g.rolls.length === 0) {
+        setError(`Artículo #${gIdx + 1}: Debe ingresar al menos un metraje/rollo usando el casillero de ingreso rápido.`);
+        return;
+      }
+
+      const config = getProviderConfig(g.providerId);
+      
+      // Validate dynamic attributes if required by provider (only for 'nuevo' or legacy 'rollo')
+      if ((packingType === 'nuevo' || packingType === 'rollo') && g.source === 'custom' && config) {
+        for (let rIdx = 0; rIdx < g.rolls.length; rIdx++) {
+          const r = g.rolls[rIdx];
+          if (config.hasLot && !r.lot?.trim() && !g.lot.trim() && !g.hasProcessedExcel) {
+            setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El campo Lote es obligatorio.`);
+            return;
+          }
+          if (config.hasPartida && !r.partida?.trim() && !g.partida.trim() && !g.hasProcessedExcel) {
+            setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El campo Partida es obligatorio.`);
+            return;
+          }
+          if (config.hasTono && !r.tono?.trim() && !g.tono.trim() && !g.hasProcessedExcel) {
+            setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El campo Tono es obligatorio.`);
+            return;
+          }
+        }
+      }
+
+      // Validate rolls inside this article group
+      for (let rIdx = 0; rIdx < g.rolls.length; rIdx++) {
+        const r = g.rolls[rIdx];
+        if ((packingType === 'nuevo' || packingType === 'rollo') && g.source === 'inventory' && !r.rollId) {
+          setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: Debe seleccionar un rollo de stock asignado.`);
+          return;
+        }
+        if ((packingType === 'nuevo' || packingType === 'rollo') && g.source === 'custom' && !r.rollNumber.trim() && (!config || (config.hasRollNo ?? true))) {
+          setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El identificador/número de rollo es obligatorio.`);
+          return;
+        }
+        if (r.meters <= 0) {
+          setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: Los metros deben ser mayor a 0.`);
+          return;
+        }
+        if (r.maxMeters && r.meters > r.maxMeters) {
+          setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: Los metros ingresados (${r.meters}m) superan el stock de almacén disponible para este rollo (${r.maxMeters}m).`);
+          return;
+        }
+      }
+    }
+
+    setLoading(true);
+
+    try {
+      // Build flattened items array for database storage
+      const finalItems: PackingListItem[] = [];
+      articleGroups.forEach(g => {
+        g.rolls.forEach(r => {
+          const item: PackingListItem = {
+            id: `pli-${Date.now()}-${Math.floor(Math.random() * 1000000)}`,
+            rollNumber: r.rollNumber || `ROLLO-DIRECT-${Math.floor(1000 + Math.random() * 9000)}`,
+            articleId: g.articleId || '',
+            providerId: g.providerId || '',
+            meters: Number(r.meters) || 0,
+            lot: r.lot || g.lot || '',
+            partida: r.partida || g.partida || '',
+            tono: r.tono || g.tono || '',
+            width: r.width || '',
+            weight: r.weight || ''
+          };
+          if (r.rollId) {
+            item.rollId = r.rollId;
+          }
+          finalItems.push(item);
+        });
+      });
+
+      const totalMetersValue = finalItems.reduce((acc, item) => acc + Number(item.meters || 0), 0);
+      const totalRollsValue = finalItems.length;
+      const clientObj = clients.find(c => c.id === clientId);
+
+      if (editingPackingList && !isDuplicate) {
+        // --- 1. MODIFICAR/EDITAR PACKING LIST EXISTENTE ---
+        
+        // A. Primero revertimos el stock e historial de los artículos despachados originalmente
+        for (const item of editingPackingList.items) {
+          if (item.rollId) {
+            const roll = inventory.find(r => r.id === item.rollId);
+            if (roll) {
+              const revertedMeters = roll.currentMeters + item.meters;
+              const status = revertedMeters >= roll.initialMeters ? 'available' : 'partially_sold';
+              
+              await updateDoc(doc(db, 'inventory', item.rollId), {
+                currentMeters: revertedMeters,
+                status,
+                updatedAt: new Date().toISOString()
+              });
+            }
+          }
+        }
+
+        // B. Preparamos el objeto modificado
+        const updatedPL: PackingList = {
+          ...editingPackingList,
+          packingListNo: packingListNo.trim(),
+          type: packingType,
+          clientId,
+          sellerId,
+          date: docDate,
+          items: finalItems,
+          totalMeters: totalMetersValue,
+          totalRollsOrCuts: totalRollsValue,
+          notes: notes.trim(),
+          signedBy: {
+            ...editingPackingList.signedBy,
+            date: docDate
+          }
+        };
+
+        // C. Guardamos la actualización en Firebase
+        await updateDoc(doc(db, 'packinglists', editingPackingList.id), updatedPL);
+
+        // D. Aplicamos los nuevos despachos calculando el stock correcto basándonos en la reversión previa
+        for (const item of finalItems) {
+          if (item.rollId) {
+            const roll = inventory.find(r => r.id === item.rollId);
+            if (roll) {
+              // Calculamos el metraje final: metraje actual + metraje anterior (si existía) - nuevo metraje despachado
+              const oldItem = editingPackingList.items.find(oi => oi.rollId === item.rollId && oi.articleId === item.articleId);
+              const oldMeters = oldItem ? oldItem.meters : 0;
+              const nextMeters = Math.max(0, roll.currentMeters + oldMeters - item.meters);
+              const status = nextMeters === 0 ? 'sold' : 'available';
+
+              await updateDoc(doc(db, 'inventory', item.rollId), {
+                currentMeters: nextMeters,
+                status,
+                updatedAt: new Date().toISOString()
+              });
+            }
+          }
+        }
+
+        await onRefresh();
+        setSuccess(`¡Packing List ${updatedPL.packingListNo} modificado correctamente!`);
+        
+        // Cargamos vista de impresión/PDF inmediatamente
+        onPackingListCreated(updatedPL);
+
+      } else {
+        // --- 2. REGISTRAR NUEVO PACKING LIST (O DUPLICADO) ---
+        
+        const newPL: PackingList = {
+          id: `pl-${Date.now()}`,
+          packingListNo: packingListNo.trim(),
+          type: packingType,
+          clientId,
+          sellerId,
+          date: docDate,
+          items: finalItems,
+          totalMeters: totalMetersValue,
+          totalRollsOrCuts: totalRollsValue,
+          notes: notes.trim(),
+          importantNotice: "Revisar el rollo antes de cortar y conservar la etiqueta.",
+          signedBy: {
+            name: "",
+            dni: "",
+            date: docDate,
+            signaturePresent: true
+          },
+          createdAt: new Date().toISOString(),
+          appVersion: '2.6r'
+        };
+
+        // Guardar nuevo registro
+        await addDoc(collection(db, 'packinglists'), newPL);
+
+        // Descontar del stock de almacén
+        for (const item of finalItems) {
+          if (item.rollId) {
+            const roll = inventory.find(r => r.id === item.rollId);
+            if (roll) {
+              const nextMeters = Math.max(0, roll.currentMeters - item.meters);
+              const status = nextMeters === 0 ? 'sold' : 'available';
+
+              await updateDoc(doc(db, 'inventory', item.rollId), {
+                currentMeters: nextMeters,
+                status,
+                updatedAt: new Date().toISOString()
+              });
+            }
+          }
+        }
+
+        await onRefresh();
+        setSuccess(`¡Packing List ${newPL.packingListNo} registrado correctamente!`);
+        
+        // Cargamos vista de impresión/PDF inmediatamente
+        onPackingListCreated(newPL);
+      }
+
+      // Resetear estado del formulario
+      setClientId('');
+      setNotes('');
+      setFormProviderId('');
+      setArticleGroups([
+        {
+          id: `group-${Date.now()}-${Math.random()}`,
+          providerId: '',
+          articleId: '',
+          lot: '',
+          partida: '',
+          tono: '',
+          source: 'custom',
+          rolls: []
+        }
+      ]);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Error al guardar el Packing List');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="ticket-perforated p-6 shadow-xs">
+      <div className="flex flex-wrap justify-between items-start md:items-center gap-4 border-b border-app-border pb-4 mb-6">
+        <div>
+          <h2 className="text-sm font-bold text-app-text flex items-center gap-2">
+            <ShoppingBag 
+              className={
+                editingPackingList && !isDuplicate 
+                  ? 'text-app-primary' 
+                  : isDuplicate 
+                    ? 'text-app-text/90' 
+                    : 'text-app-secondary'
+              } 
+              size={18} 
+            />
+            {editingPackingList && !isDuplicate ? (
+              <span>Modificar Packing List <span className="font-mono text-app-primary">{editingPackingList.packingListNo}</span></span>
+            ) : isDuplicate ? (
+              <span>Duplicar Packing List <span className="font-mono text-app-text/90">{editingPackingList?.packingListNo}</span></span>
+            ) : (
+              'Generar Nuevo Packing List'
+            )}
+          </h2>
+          <p className="text-[11px] text-app-text/50 mt-1">
+            {editingPackingList && !isDuplicate 
+              ? 'Realice cambios en los metrajes, datos del cliente u operarios. El inventario se recalculará automáticamente.' 
+              : isDuplicate 
+                ? 'Cree un nuevo packing list a partir del contenido del documento original.'
+                : 'Registre despachos ingresando múltiples cantidades de metraje en uno o varios artículos.'}
+          </p>
+        </div>
+
+        {/* Toggle between Nuevo, Antiguo, or Corte */}
+        <div className="flex bg-app-bg p-1 rounded border border-app-border gap-1 flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              setPackingType('nuevo');
+              setArticleGroups(prev => prev.map(g => ({
+                ...g,
+                rolls: g.rolls.map((r, rIdx) => ({
+                  ...r,
+                  rollNumber: r.rollNumber.startsWith('CORTE-') ? `ROLLO-${rIdx + 1}` : r.rollNumber
+                }))
+              })));
+            }}
+            className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer ${
+              packingType === 'nuevo'
+                ? 'bg-app-primary text-white shadow-xs'
+                : 'text-app-text/60 hover:text-app-text hover:bg-app-bg'
+            }`}
+            id="toggle-type-nuevo"
+          >
+            P. List Nuevo
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPackingType('antiguo');
+              setArticleGroups(prev => prev.map(g => ({
+                ...g,
+                source: 'custom',
+                rolls: g.rolls.map((r, rIdx) => ({
+                  ...r,
+                  rollId: undefined,
+                  rollNumber: r.rollNumber.startsWith('ROLLO-') ? `CORTE-${rIdx + 1}` : r.rollNumber
+                }))
+              })));
+            }}
+            className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer ${
+              packingType === 'antiguo'
+                ? 'bg-app-primary text-white shadow-xs'
+                : 'text-app-text/60 hover:text-app-text hover:bg-app-bg'
+            }`}
+            id="toggle-type-antiguo"
+          >
+            P. List Antiguo
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPackingType('corte');
+              setArticleGroups(prev => prev.map(g => ({
+                ...g,
+                source: 'custom',
+                rolls: g.rolls.map((r, rIdx) => ({
+                  ...r,
+                  rollId: undefined,
+                  rollNumber: r.rollNumber.startsWith('ROLLO-') ? `CORTE-${rIdx + 1}` : r.rollNumber
+                }))
+              })));
+            }}
+            className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer ${
+              packingType === 'corte'
+                ? 'bg-app-primary text-white shadow-xs'
+                : 'text-app-text/60 hover:text-app-text hover:bg-app-bg'
+            }`}
+            id="toggle-type-corte"
+          >
+            P. List Corte
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 text-red-800 rounded-lg text-sm mb-4">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="p-3 bg-app-bg border border-app-border text-app-text rounded-lg text-sm mb-4 flex items-center gap-2">
+          <CheckCircle2 size={16} className="text-app-secondary" />
+          {success}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Document metadata info panel */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-app-bg/50 p-4 border border-app-border rounded-xl">
+          <div>
+            <label className="block text-xs font-bold text-app-text/80 mb-1">Nº de Packing List *</label>
+            <input
+              type="text"
+              required
+              value={packingListNo}
+              onChange={e => setPackingListNo(e.target.value)}
+              placeholder="Ej. PL-00234"
+              className="w-full px-3 py-2 border border-app-border rounded-lg text-sm font-mono font-bold text-app-text focus:ring-2 focus:ring-app-primary bg-app-surface"
+              id="input-pl-no"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-app-text/80 mb-1">Fecha de Despacho *</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-2.5 text-app-text/45" size={16} />
+              <input
+                type="date"
+                required
+                value={docDate}
+                onChange={e => setDocDate(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 border border-app-border rounded-lg text-sm focus:ring-2 focus:ring-app-primary bg-app-surface text-app-text"
+              />
+            </div>
+          </div>
+
+          <ClientSellerSelector
+            clientId={clientId}
+            setClientId={setClientId}
+            clients={clients}
+            onAddNewClient={handleAddNewClient}
+            sellerId={sellerId}
+            setSellerId={setSellerId}
+            sellers={sellers}
+            onAddNewSeller={handleAddNewSeller}
+            formProviderId={formProviderId}
+            setFormProviderId={setFormProviderId}
+            providers={providers}
+          />
+        </div>
+
+        {/* Notas / Observaciones */}
+        {packingType === 'corte' && (
+          <div className="bg-app-bg/50 p-4 border border-app-border rounded-xl">
+            <label className="block text-xs font-bold text-app-text/80 mb-1">Notas / Observaciones (Se imprimirá en el Packing List)</label>
+            <textarea
+              placeholder="Escriba alguna nota, observación o instrucción especial para este packing list..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border border-app-border rounded-lg text-sm bg-app-surface focus:ring-2 focus:ring-app-primary placeholder:text-app-text/45 text-app-text"
+              id="input-pl-notes"
+            />
+          </div>
+        )}
+
+        {/* Dynamic Nested Articles Sections */}
+        <div className="space-y-6">
+          <div className="flex justify-between items-center border-b border-app-border pb-2">
+            <h3 className="text-xs font-black text-app-text uppercase tracking-widest">
+              Artículos en el Despacho
+            </h3>
+            <button
+              type="button"
+              onClick={handleAddArticleGroup}
+              className="px-4 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              id="btn-add-article-section"
+            >
+              <Plus size={14} />
+              Añadir Otro Artículo
+            </button>
+          </div>
+
+          {articleGroups.map((group, index) => (
+            <ArticleGroupSection
+              key={group.id}
+              group={group}
+              index={index}
+              articles={articles}
+              providers={providers}
+              packingType={packingType}
+              availableRolls={availableRolls}
+              formProviderId={formProviderId}
+              onRemove={handleRemoveArticleGroup}
+              onGroupFieldChange={handleGroupFieldChange}
+              onRollFieldChange={handleRollFieldChange}
+              onAddRoll={handleAddRollToGroup}
+              onRemoveRoll={handleRemoveRollFromGroup}
+              onProcessUnifiedInput={handleProcessUnifiedInput}
+              onRollKeyDown={handleRollKeyDown}
+            />
+          ))}
+        </div>
+
+        {/* Submit Actions */}
+        <div className="flex justify-end items-center gap-3 border-t border-app-border pt-4">
+          {editingPackingList && (
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              className="px-4 py-2.5 bg-app-bg hover:bg-app-border text-app-text font-bold rounded-lg text-sm transition cursor-pointer border border-app-border"
+            >
+              Cancelar {isDuplicate ? 'Duplicación' : 'Modificación'}
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            className={`px-6 py-3 text-white font-bold rounded-lg text-sm transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5 ${
+              editingPackingList && !isDuplicate
+                ? 'bg-app-primary hover:bg-app-primary/90'
+                : isDuplicate
+                  ? 'bg-app-secondary hover:bg-app-secondary/90'
+                  : 'bg-app-secondary hover:bg-app-secondary/90'
+            }`}
+            id="btn-submit-packinglist"
+          >
+            {loading 
+              ? (editingPackingList && !isDuplicate ? 'Guardando cambios...' : isDuplicate ? 'Duplicando...' : 'Generando Packing List...') 
+              : (editingPackingList && !isDuplicate ? 'Guardar Cambios' : isDuplicate ? 'Crear Duplicado' : 'Generar Packing List e Imprimir')}
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

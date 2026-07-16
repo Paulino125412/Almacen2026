@@ -1,0 +1,152 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Helpers
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming(req) {
+      return req.resource.data;
+    }
+
+    // 1. Providers
+    match /providers/{providerId} {
+      allow read: if true;
+      allow create, update: if isValidId(providerId) 
+        && incoming(request).name is string 
+        && incoming(request).name.size() > 0 
+        && incoming(request).name.size() <= 128
+        && incoming(request).hasLot is bool
+        && incoming(request).hasPartida is bool
+        && incoming(request).hasTono is bool
+        && incoming(request).hasRollNo is bool
+        && (!('hasWidth' in incoming(request)) || incoming(request).hasWidth is bool)
+        && (!('hasWeight' in incoming(request)) || incoming(request).hasWeight is bool);
+      allow delete: if isValidId(providerId);
+    }
+
+    // 2. Articles
+    match /articles/{articleId} {
+      allow read: if true;
+      allow create, update: if isValidId(articleId)
+        && incoming(request).name is string 
+        && incoming(request).name.size() > 0 
+        && incoming(request).name.size() <= 128
+        && incoming(request).providerId is string
+        && incoming(request).providerId.size() <= 128
+        && (!('description' in incoming(request)) || (incoming(request).description is string && incoming(request).description.size() <= 500))
+        && (!('unit' in incoming(request)) || (incoming(request).unit is string && incoming(request).unit.size() <= 50));
+      allow delete: if isValidId(articleId);
+    }
+
+    // 3. Clients
+    match /clients/{clientId} {
+      allow read: if true;
+      allow create, update: if isValidId(clientId)
+        && incoming(request).name is string 
+        && incoming(request).name.size() > 0 
+        && incoming(request).name.size() <= 128
+        && incoming(request).dni is string 
+        && incoming(request).dni.size() >= 8 
+        && incoming(request).dni.size() <= 12
+        && (!('address' in incoming(request)) || (incoming(request).address is string && incoming(request).address.size() <= 500))
+        && (!('email' in incoming(request)) || (incoming(request).email is string && incoming(request).email.size() <= 128))
+        && (!('phone' in incoming(request)) || (incoming(request).phone is string && incoming(request).phone.size() <= 50));
+      allow delete: if isValidId(clientId);
+    }
+
+    // 4. Sellers
+    match /sellers/{sellerId} {
+      allow read: if true;
+      allow create, update: if isValidId(sellerId)
+        && incoming(request).name is string 
+        && incoming(request).name.size() > 0 
+        && incoming(request).name.size() <= 128
+        && (!('email' in incoming(request)) || (incoming(request).email is string && incoming(request).email.size() <= 128))
+        && (!('phone' in incoming(request)) || (incoming(request).phone is string && incoming(request).phone.size() <= 50));
+      allow delete: if isValidId(sellerId);
+    }
+
+    // 5. Inventory
+    match /inventory/{rollId} {
+      allow read: if true;
+      allow create, update: if isValidId(rollId)
+        && incoming(request).rollNumber is string 
+        && incoming(request).rollNumber.size() > 0 
+        && incoming(request).rollNumber.size() <= 50
+        && incoming(request).articleId is string 
+        && incoming(request).articleId.size() <= 128
+        && incoming(request).providerId is string 
+        && incoming(request).providerId.size() <= 128
+        && (incoming(request).initialMeters is int || incoming(request).initialMeters is float || incoming(request).initialMeters is number)
+        && incoming(request).initialMeters >= 0
+        && (incoming(request).currentMeters is int || incoming(request).currentMeters is float || incoming(request).currentMeters is number)
+        && incoming(request).currentMeters >= 0
+        && incoming(request).status is string 
+        && incoming(request).status.size() <= 50
+        && (!('lot' in incoming(request)) || (incoming(request).lot is string && incoming(request).lot.size() <= 50))
+        && (!('partida' in incoming(request)) || (incoming(request).partida is string && incoming(request).partida.size() <= 50))
+        && (!('tono' in incoming(request)) || (incoming(request).tono is string && incoming(request).tono.size() <= 50))
+        && incoming(request).appVersion is string
+        && incoming(request).appVersion.size() > 0
+        && incoming(request).appVersion.size() <= 20;
+      allow delete: if isValidId(rollId);
+    }
+
+    // 7. Packing Lists
+    match /packinglists/{packingListId} {
+      allow read: if true;
+      allow create: if isValidId(packingListId)
+        && incoming(request).packingListNo is string 
+        && incoming(request).packingListNo.size() > 0 
+        && incoming(request).packingListNo.size() <= 50
+        && incoming(request).type is string 
+        && incoming(request).type.size() <= 50
+        && incoming(request).clientId is string 
+        && incoming(request).clientId.size() <= 128
+        && incoming(request).sellerId is string 
+        && incoming(request).sellerId.size() <= 128
+        && incoming(request).date is string 
+        && incoming(request).date.size() <= 50
+        && incoming(request).items is list 
+        && incoming(request).items.size() <= 100
+        && (incoming(request).totalMeters is int || incoming(request).totalMeters is float || incoming(request).totalMeters is number)
+        && incoming(request).totalMeters >= 0
+        && (incoming(request).totalRollsOrCuts is int || incoming(request).totalRollsOrCuts is float || incoming(request).totalRollsOrCuts is number)
+        && incoming(request).totalRollsOrCuts >= 0
+        && (!('notes' in incoming(request)) || (incoming(request).notes is string && incoming(request).notes.size() <= 500))
+        && incoming(request).appVersion is string
+        && incoming(request).appVersion.size() > 0
+        && incoming(request).appVersion.size() <= 20;
+      allow update: if isValidId(packingListId)
+        && incoming(request).packingListNo is string 
+        && incoming(request).packingListNo.size() > 0 
+        && incoming(request).packingListNo.size() <= 50
+        && incoming(request).type is string 
+        && incoming(request).type.size() <= 50
+        && incoming(request).clientId is string 
+        && incoming(request).clientId.size() <= 128
+        && incoming(request).sellerId is string 
+        && incoming(request).sellerId.size() <= 128
+        && incoming(request).date is string 
+        && incoming(request).date.size() <= 50
+        && incoming(request).items is list 
+        && incoming(request).items.size() <= 100
+        && (incoming(request).totalMeters is int || incoming(request).totalMeters is float || incoming(request).totalMeters is number)
+        && incoming(request).totalMeters >= 0
+        && (incoming(request).totalRollsOrCuts is int || incoming(request).totalRollsOrCuts is float || incoming(request).totalRollsOrCuts is number)
+        && incoming(request).totalRollsOrCuts >= 0
+        && (!('notes' in incoming(request)) || (incoming(request).notes is string && incoming(request).notes.size() <= 500))
+        && incoming(request).appVersion is string
+        && incoming(request).appVersion.size() > 0
+        && incoming(request).appVersion.size() <= 20;
+      allow delete: if isValidId(packingListId);
+    }
+  }
+}
