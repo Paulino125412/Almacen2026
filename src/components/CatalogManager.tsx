@@ -769,7 +769,7 @@ export default function CatalogManager({
                         <tr key={a.id} className="hover:bg-app-bg/40 border-b border-app-border/60 text-xs">
                           <td className="p-3 font-semibold text-app-text">{a.name}</td>
                           <td className="p-3 text-app-text/60">{a.description || '-'}</td>
-                          <td className="p-3 font-medium text-app-text/90">{prov?.name || 'Cargando...'}</td>
+                          <td className="p-3 font-medium text-app-text/90">{prov?.name || 'Proveedor Eliminado'}</td>
                           <td className="p-3 text-xs font-mono text-app-text/60">{a.unit}</td>
                           <td className="p-3 text-right">
                             <div className="flex justify-end gap-1">

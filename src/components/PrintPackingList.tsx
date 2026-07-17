@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { PackingList, PackingListItem, Client, Seller, Provider, Article } from '../types';
-import { FileText, Printer, X, AlertTriangle } from 'lucide-react';
+import { FileText, Printer, X, AlertTriangle, MessageCircle } from 'lucide-react';
 
 interface PrintPackingListProps {
   packingList: PackingList;
@@ -23,7 +23,7 @@ export default function PrintPackingList({
   const client = clients.find(c => c.id === packingList.clientId);
   const seller = sellers.find(s => s.id === packingList.sellerId);
 
-  const getArticleName = (id: string) => articles.find(a => a.id === id)?.name || 'Artículo Desconocido';
+  const getArticleName = (id: string) => articles.find(a => a.id === id)?.name || 'Artículo Eliminado';
 
   const totalMeters = packingList.items.reduce((acc, item) => acc + Number(item.meters || 0), 0);
   const totalRolls = packingList.items.length;
@@ -52,6 +52,23 @@ export default function PrintPackingList({
     setTimeout(() => {
       document.title = originalTitle;
     }, 500);
+  };
+
+  const handleShareWhatsApp = () => {
+    const guideLine = packingList.guideNumber && packingList.guideNumber.trim() !== ''
+      ? `Packing List Guía N°: ${packingList.guideNumber.trim()}`
+      : 'Packing List';
+
+    const clientName = client?.name || 'Cliente Eliminado';
+
+    const text = `${guideLine}
+Cliente: ${clientName}
+Fecha: ${packingList.date}
+Total Rollos: ${packingList.totalRollsOrCuts}
+Total Metros: ${totalMeters.toFixed(2)} m`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
   };
 
   // Group packing list items by Article ID for professional grouped layout
@@ -170,6 +187,14 @@ export default function PrintPackingList({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleShareWhatsApp}
+              className="px-4 py-1.5 bg-[#25D366] hover:bg-[#128C7E] text-white rounded font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-xs uppercase tracking-wider"
+              id="btn-whatsapp-share-print"
+            >
+              <MessageCircle size={13} />
+              WhatsApp
+            </button>
             <button
               onClick={handlePrint}
               className="px-4 py-1.5 bg-app-primary hover:bg-app-primary/95 text-white rounded font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-xs uppercase tracking-wider"
@@ -352,7 +377,7 @@ function SinglePrintPage({
         <div className="flex justify-between items-start text-xs border-b border-app-border pb-3 mb-6">
           <div className="space-y-1">
             <p className="font-bold">
-              CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente de Registro'}</span>
+              CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente Eliminado'}</span>
             </p>
             {packingList.dispatchAddress && (
               <p className="font-bold mt-1">
@@ -508,7 +533,7 @@ function CortePrintSheet({
           <div className="grid grid-cols-2 gap-4 text-[9.5px] py-1 mb-1.5 border-b border-app-border">
             <div>
               <p className="font-bold">
-                CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente de Registro'}</span>
+                CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente Eliminado'}</span>
               </p>
               {packingList.dispatchAddress && (
                 <p className="font-bold mt-0.5">
@@ -638,7 +663,7 @@ function CortePrintSheet({
           <div className="grid grid-cols-2 gap-4 text-[9.5px] py-1 mb-1.5 border-b border-app-border">
             <div>
               <p className="font-bold">
-                CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente de Registro'}</span>
+                CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente Eliminado'}</span>
               </p>
               {packingList.dispatchAddress && (
                 <p className="font-bold mt-0.5">

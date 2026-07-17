@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PackingList, Client, Seller, Provider, Article } from '../types';
 import { db, deleteDoc } from '../firebase';
 import { doc } from 'firebase/firestore';
-import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, Copy, FileSpreadsheet } from 'lucide-react';
+import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, Copy, FileSpreadsheet, MessageCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface PackingListHistoryProps {
@@ -42,6 +42,7 @@ export default function PackingListHistory({
   const [filterClientId, setFilterClientId] = useState<string>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [showOnlyNoGuide, setShowOnlyNoGuide] = useState(false);
 
   // Custom modal states for secure deletion
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; plNo: string } | null>(null);
@@ -49,10 +50,28 @@ export default function PackingListHistory({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
 
-  const getClientName = (id: string) => clients.find(c => c.id === id)?.name || 'Cargando...';
-  const getSellerName = (id: string) => sellers.find(s => s.id === id)?.name || 'Cargando...';
+  const getClientName = (id: string) => clients.find(c => c.id === id)?.name || 'Cliente Eliminado';
+  const getSellerName = (id: string) => sellers.find(s => s.id === id)?.name || 'Vendedor Eliminado';
   const getArticleName = (id: string) => articles.find(a => a.id === id)?.name || id;
   const getProviderName = (id: string) => providers.find(p => p.id === id)?.name || id;
+
+  const handleShareWhatsApp = (pl: PackingList) => {
+    const guideLine = pl.guideNumber && pl.guideNumber.trim() !== ''
+      ? `Packing List Guía N°: ${pl.guideNumber.trim()}`
+      : 'Packing List';
+
+    const clientName = getClientName(pl.clientId);
+    const totalMeters = pl.items.reduce((acc, item) => acc + item.meters, 0);
+
+    const text = `${guideLine}
+Cliente: ${clientName}
+Fecha: ${pl.date}
+Total Rollos: ${pl.totalRollsOrCuts}
+Total Metros: ${totalMeters.toFixed(2)} m`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
 
   // 1. Export summary of filtered Packing Lists to Excel
   const handleExportSummary = () => {
@@ -316,9 +335,15 @@ export default function PackingListHistory({
       if (startDate && pl.date < startDate) matchesDate = false;
       if (endDate && pl.date > endDate) matchesDate = false;
 
-      return matchesSearch && matchesType && matchesClient && matchesDate;
+      // 5. No Guide Filter
+      let matchesNoGuide = true;
+      if (showOnlyNoGuide) {
+        matchesNoGuide = !pl.guideNumber || pl.guideNumber.trim() === '';
+      }
+
+      return matchesSearch && matchesType && matchesClient && matchesDate && matchesNoGuide;
     });
-  }, [sortedPackingLists, searchTerm, filterType, filterClientId, startDate, endDate, clients, sellers]);
+  }, [sortedPackingLists, searchTerm, filterType, filterClientId, startDate, endDate, showOnlyNoGuide, clients, sellers]);
 
   const initiateDelete = (id: string, plNo: string) => {
     setDeleteError(null);
@@ -416,6 +441,20 @@ export default function PackingListHistory({
           </div>
         </div>
 
+        {/* Filtro adicional para guía */}
+        <div className="mt-4 flex items-center">
+          <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-app-text/80 select-none">
+            <input
+              type="checkbox"
+              checked={showOnlyNoGuide}
+              onChange={e => setShowOnlyNoGuide(e.target.checked)}
+              className="rounded border-app-border text-app-primary focus:ring-app-primary focus:ring-offset-0 bg-app-surface w-4 h-4 cursor-pointer"
+              id="filter-pl-no-guide"
+            />
+            <span>Mostrar solo Packing Lists sin número de guía</span>
+          </label>
+        </div>
+
         <div className="flex flex-wrap justify-between items-center gap-3 mt-5 pt-4 border-t border-app-border">
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-xs text-app-text/60 font-medium">
@@ -442,13 +481,14 @@ export default function PackingListHistory({
               </div>
             )}
           </div>
-          {(searchTerm || filterType !== 'all' || startDate || endDate) && (
+          {(searchTerm || filterType !== 'all' || startDate || endDate || showOnlyNoGuide) && (
             <button
               onClick={() => {
                 setSearchTerm('');
                 setFilterType('all');
                 setStartDate('');
                 setEndDate('');
+                setShowOnlyNoGuide(false);
               }}
               className="text-[10px] uppercase tracking-wider text-app-text/60 hover:text-app-text font-bold transition cursor-pointer"
             >
@@ -534,7 +574,18 @@ export default function PackingListHistory({
                     <tr key={pl.id} className="hover:bg-app-bg/40 transition duration-150">
                       <td className="p-4 pl-5 text-center font-mono font-bold text-app-text/50 bg-app-bg/10">{index + 1}</td>
                       <td className="p-4 font-mono font-bold text-app-text">
-                        <span className="warehouse-tag">{pl.packingListNo}</span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="warehouse-tag">{pl.packingListNo}</span>
+                          {(!pl.guideNumber || pl.guideNumber.trim() === '') ? (
+                            <span className="inline-block px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider bg-[#B5822A]/10 text-[#B5822A] border border-[#B5822A]/25">
+                              SIN GUÍA
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-app-text/50 font-sans tracking-normal" title={`Nº Guía: ${pl.guideNumber}`}>
+                              Guía: {pl.guideNumber}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-4">
                         <span className={`inline-block px-2 py-0.5 text-[9px] rounded font-bold uppercase tracking-wider ${
@@ -582,6 +633,13 @@ export default function PackingListHistory({
                           >
                             <Eye size={12} />
                             Imprimir / PDF
+                          </button>
+                          <button
+                            onClick={() => handleShareWhatsApp(pl)}
+                            className="p-1 bg-app-surface hover:bg-[#25D366]/10 text-app-text/60 hover:text-[#25D366] border border-app-border rounded transition cursor-pointer flex items-center justify-center"
+                            title="Compartir por WhatsApp"
+                          >
+                            <MessageCircle size={12} />
                           </button>
                           <button
                             onClick={() => onEdit(pl)}

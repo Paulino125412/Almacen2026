@@ -636,10 +636,10 @@ export default function InventoryManager({
                         <span className="warehouse-tag">{item.rollNumber}</span>
                       </td>
                       <td className="p-4 font-semibold text-app-text">
-                        {article?.name || 'Desconocido'}
+                        {article?.name || 'Artículo Eliminado'}
                       </td>
                       <td className="p-4 text-app-text/60 font-medium">
-                        {provider?.name || 'Desconocido'}
+                        {provider?.name || 'Proveedor Eliminado'}
                       </td>
                       <td className="p-4 font-mono">{item.lot || '-'}</td>
                       <td className="p-4 font-mono">{item.partida || '-'}</td>
