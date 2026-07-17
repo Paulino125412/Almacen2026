@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Client, Seller, Provider, Article } from '../types';
+import { Client, Seller, Provider, Article, PackingList } from '../types';
 import { db, addDoc, updateDoc, deleteDoc } from '../firebase';
 import { collection, doc } from 'firebase/firestore';
 import { Plus, Edit2, Trash2, Users, Briefcase, Truck, Layers, Check, X, Search } from 'lucide-react';
@@ -9,6 +9,7 @@ interface CatalogManagerProps {
   sellers: Seller[];
   providers: Provider[];
   articles: Article[];
+  packingLists: PackingList[];
   onRefresh: () => Promise<void>;
   initialTab?: CatalogTab;
   initialSearchQuery?: string;
@@ -21,6 +22,7 @@ export default function CatalogManager({
   sellers,
   providers,
   articles,
+  packingLists,
   onRefresh,
   initialTab,
   initialSearchQuery
@@ -232,7 +234,22 @@ export default function CatalogManager({
   };
 
   const handleDelete = async (tab: CatalogTab, id: string) => {
-    if (!window.confirm('¿Está seguro de eliminar este registro del catálogo?')) return;
+    let count = 0;
+    if (tab === 'clients') {
+      count = packingLists.filter(pl => pl.clientId === id).length;
+    } else if (tab === 'sellers') {
+      count = packingLists.filter(pl => pl.sellerId === id).length;
+    } else if (tab === 'providers') {
+      count = packingLists.filter(pl => pl.items?.some(item => item.providerId === id)).length;
+    } else if (tab === 'articles') {
+      count = packingLists.filter(pl => pl.items?.some(item => item.articleId === id)).length;
+    }
+
+    const confirmMessage = count > 0
+      ? `Este registro tiene ${count} Packing List(s) asociados. Eliminarlo NO borrará esos despachos, pero perderás la referencia a este nombre/dato en ellos (aparecerá como "no disponible" en el historial). ¿Deseas continuar de todas formas?`
+      : '¿Está seguro de eliminar este registro del catálogo?';
+
+    if (!window.confirm(confirmMessage)) return;
     setLoading(true);
     setError(null);
     try {
