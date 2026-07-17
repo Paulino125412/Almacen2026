@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Camera, RefreshCw, AlertTriangle, CheckCircle, FlameKindling, Info } from 'lucide-react';
+import { X, Camera, RefreshCw, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { RollItem } from '../types';
 
 interface BarcodeScannerModalProps {
   isOpen: boolean;
@@ -15,18 +14,13 @@ interface BarcodeScannerModalProps {
     tono?: string;
     width?: string;
     weight?: string;
-    selectedRollId?: string;
   }) => void;
-  availableRolls: RollItem[];
-  groupArticleId: string;
 }
 
 export default function BarcodeScannerModal({
   isOpen,
   onClose,
-  onScanResult,
-  availableRolls,
-  groupArticleId
+  onScanResult
 }: BarcodeScannerModalProps) {
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
@@ -85,21 +79,6 @@ export default function BarcodeScannerModal({
         if (data.width || data.ancho) result.width = String(data.width || data.ancho);
         if (data.weight || data.peso) result.weight = String(data.weight || data.peso);
 
-        // Inventory lookup match
-        if (result.rollNumber) {
-          const matched = availableRolls.find(
-            r => r.articleId === groupArticleId && 
-            (r.rollNumber?.toLowerCase() === result.rollNumber.toLowerCase() || r.id === result.rollNumber)
-          );
-          if (matched) {
-            result.selectedRollId = matched.id;
-            result.meters = matched.currentMeters;
-            result.rollNumber = matched.rollNumber;
-            if (matched.lot) result.lot = matched.lot;
-            if (matched.partida) result.partida = matched.partida;
-            if (matched.tono) result.tono = matched.tono;
-          }
-        }
         return result;
       }
     } catch (e) {
@@ -135,20 +114,6 @@ export default function BarcodeScannerModal({
     }
 
     if (hasKV) {
-      if (kvResult.rollNumber) {
-        const matched = availableRolls.find(
-          r => r.articleId === groupArticleId && 
-          (r.rollNumber?.toLowerCase() === kvResult.rollNumber.toLowerCase() || r.id === kvResult.rollNumber)
-        );
-        if (matched) {
-          kvResult.selectedRollId = matched.id;
-          kvResult.meters = matched.currentMeters;
-          kvResult.rollNumber = matched.rollNumber;
-          if (matched.lot) kvResult.lot = matched.lot;
-          if (matched.partida) kvResult.partida = matched.partida;
-          if (matched.tono) kvResult.tono = matched.tono;
-        }
-      }
       return kvResult;
     }
 
@@ -184,40 +149,11 @@ export default function BarcodeScannerModal({
       if (partidaCandidate) sepResult.partida = partidaCandidate.toUpperCase();
       if (tonoCandidate) sepResult.tono = tonoCandidate.toUpperCase();
 
-      if (sepResult.rollNumber) {
-        const matched = availableRolls.find(
-          r => r.articleId === groupArticleId && 
-          (r.rollNumber?.toLowerCase() === sepResult.rollNumber.toLowerCase() || r.id === sepResult.rollNumber)
-        );
-        if (matched) {
-          sepResult.selectedRollId = matched.id;
-          sepResult.meters = matched.currentMeters;
-          sepResult.rollNumber = matched.rollNumber;
-          if (matched.lot) sepResult.lot = matched.lot;
-          if (matched.partida) sepResult.partida = matched.partida;
-          if (matched.tono) sepResult.tono = matched.tono;
-        }
-      }
       return sepResult;
     }
 
-    // 4. Default: Raw code string represents either Roll Number or Roll ID
-    const rawResult: any = { rollNumber: trimmed.toUpperCase() };
-    const matched = availableRolls.find(
-      r => r.articleId === groupArticleId && 
-      (r.rollNumber?.toLowerCase() === trimmed.toLowerCase() || r.id === trimmed)
-    );
-
-    if (matched) {
-      rawResult.selectedRollId = matched.id;
-      rawResult.rollNumber = matched.rollNumber;
-      rawResult.meters = matched.currentMeters;
-      if (matched.lot) rawResult.lot = matched.lot;
-      if (matched.partida) rawResult.partida = matched.partida;
-      if (matched.tono) rawResult.tono = matched.tono;
-    }
-
-    return rawResult;
+    // 4. Default: Raw code string represents Roll Number
+    return { rollNumber: trimmed.toUpperCase() };
   };
 
   const processScanResult = (decodedText: string) => {
@@ -232,7 +168,7 @@ export default function BarcodeScannerModal({
     if (result && result.rollNumber) {
       onScanResult(result);
       
-      const mainText = result.selectedRollId ? `Stock: ${result.rollNumber}` : `Rollo: ${result.rollNumber}`;
+      const mainText = `Rollo: ${result.rollNumber}`;
       const metersText = result.meters ? ` | ${result.meters.toFixed(2)}m` : '';
       setSuccessBanner({
         message: `¡Leído con éxito!`,
@@ -374,7 +310,7 @@ export default function BarcodeScannerModal({
             {/* Header */}
             <div className="px-4 py-3.5 bg-app-bg border-b border-app-border flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                <span className="w-2.5 h-2.5 rounded-full bg-app-secondary animate-pulse" />
                 <h3 className="font-bold text-xs uppercase tracking-wider text-app-text">
                   Escanear Código / QR
                 </h3>
@@ -406,16 +342,16 @@ export default function BarcodeScannerModal({
                 {isScanning && (
                   <>
                     {/* Pulsing targeting line */}
-                    <div className="absolute left-4 right-4 top-1/2 h-0.5 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.85)] animate-pulse z-10" />
+                    <div className="absolute left-4 right-4 top-1/2 h-0.5 bg-app-secondary shadow-[0_0_8px_var(--app-secondary)] animate-pulse z-10" />
 
                     {/* Target scan area box visualizer overlay */}
                     <div className="absolute inset-0 border-[35px] border-black/35 pointer-events-none flex items-center justify-center">
-                      <div className="w-full h-full border border-green-500/50 relative">
+                      <div className="w-full h-full border border-app-secondary/50 relative">
                         {/* L-shaped corners for focus guidance */}
-                        <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-green-500" />
-                        <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-green-500" />
-                        <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-green-500" />
-                        <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-green-500" />
+                        <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-app-secondary" />
+                        <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-app-secondary" />
+                        <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-app-secondary" />
+                        <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-app-secondary" />
                       </div>
                     </div>
                   </>
@@ -435,7 +371,7 @@ export default function BarcodeScannerModal({
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="absolute top-3 left-3 right-3 bg-green-500 border border-green-600 text-white p-2 rounded shadow-lg flex items-center gap-2 z-20"
+                      className="absolute top-3 left-3 right-3 bg-app-secondary border border-app-secondary/80 text-white p-2 rounded shadow-lg flex items-center gap-2 z-20"
                     >
                       <CheckCircle size={14} className="shrink-0" />
                       <div className="text-[10px] leading-tight text-left">

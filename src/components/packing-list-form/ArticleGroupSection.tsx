@@ -31,7 +31,6 @@ interface ArticleGroupSectionProps {
     tono?: string;
     width?: string;
     weight?: string;
-    selectedRollId?: string;
   }) => void;
 }
 
@@ -250,10 +249,10 @@ export default function ArticleGroupSection({
               <button
                 type="button"
                 onClick={handleOpenScanner}
-                className="px-2.5 py-1 bg-green-50 hover:bg-green-100 dark:bg-green-950/30 dark:hover:bg-green-950 dark:border-green-800 dark:text-green-300 border border-green-200 text-green-700 rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                className="px-2.5 py-1 bg-app-secondary/10 hover:bg-app-secondary/20 dark:bg-app-secondary/20 dark:hover:bg-app-secondary/35 border border-app-secondary/30 dark:border-app-secondary/40 text-app-secondary rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
                 title="Escanear etiquetas de rollos con la cámara"
               >
-                <QrCode size={11} className="text-green-600 dark:text-green-400" />
+                <QrCode size={11} className="text-app-secondary" />
                 Escanear Cámara (QR/Barra)
               </button>
 
@@ -446,8 +445,6 @@ export default function ArticleGroupSection({
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         onScanResult={(scan) => onAddScannedRoll(group.id, scan)}
-        availableRolls={availableRolls}
-        groupArticleId={group.articleId}
       />
     </div>
   );

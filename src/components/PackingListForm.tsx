@@ -506,38 +506,9 @@ export default function PackingListForm({
     tono?: string;
     width?: string;
     weight?: string;
-    selectedRollId?: string;
   }) => {
     setArticleGroups(prev => prev.map(g => {
       if (g.id === groupId) {
-        if (scan.selectedRollId) {
-          // Check if this stock roll is already added in this group to prevent duplicate scanning
-          const exists = g.rolls.some(r => r.rollId === scan.selectedRollId);
-          if (exists) {
-            alert(`El rollo en stock "${scan.rollNumber}" ya fue agregado a este artículo.`);
-            return g;
-          }
-
-          return {
-            ...g,
-            rolls: [
-              ...g.rolls,
-              {
-                id: `roll-${Date.now()}-${Math.random()}`,
-                rollId: scan.selectedRollId,
-                rollNumber: scan.rollNumber,
-                meters: scan.meters || 0,
-                maxMeters: scan.meters, // set max boundary for stock rolls
-                lot: scan.lot || g.lot || '',
-                partida: scan.partida || g.partida || '',
-                tono: scan.tono || g.tono || '',
-                width: scan.width || '',
-                weight: scan.weight || ''
-              }
-            ]
-          };
-        }
-
         // Custom manual roll scan entry
         return {
           ...g,
