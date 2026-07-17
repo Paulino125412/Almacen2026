@@ -338,6 +338,55 @@ export default function PackingListForm({
     }
   };
 
+  // Save new provider on the fly
+  const handleAddNewProvider = async (name: string, fields: Record<string, string>): Promise<string> => {
+    try {
+      const hasLot = fields.hasLot ? fields.hasLot.trim().toLowerCase() !== 'no' : true;
+      const hasPartida = fields.hasPartida ? fields.hasPartida.trim().toLowerCase() !== 'no' : true;
+      const hasTono = fields.hasTono ? fields.hasTono.trim().toLowerCase() !== 'no' : true;
+      
+      const newProviderData = {
+        name,
+        hasLot,
+        hasPartida,
+        hasTono,
+        hasRollNo: true,
+        hasWidth: false,
+        hasWeight: false,
+        createdAt: new Date().toISOString()
+      };
+      const docRef = await addDoc(collection(db, 'providers'), newProviderData);
+      await onRefresh(); // Refresh data to update parent's providers list
+      setFormProviderId(docRef.id);
+      return docRef.id;
+    } catch (err) {
+      console.error("Error creating provider on the fly:", err);
+      throw new Error("No se pudo registrar el proveedor. Verifique su conexión.");
+    }
+  };
+
+  // Save new article on the fly
+  const handleAddNewArticle = async (name: string, fields: Record<string, string>): Promise<string> => {
+    try {
+      if (!formProviderId) {
+        throw new Error("Debe seleccionar un Proveedor primero antes de registrar un nuevo artículo.");
+      }
+      const newArticleData = {
+        name,
+        description: fields.description || '',
+        unit: 'metros',
+        providerId: formProviderId,
+        createdAt: new Date().toISOString()
+      };
+      const docRef = await addDoc(collection(db, 'articles'), newArticleData);
+      await onRefresh(); // Refresh data to update parent's articles list
+      return docRef.id;
+    } catch (err: any) {
+      console.error("Error creating article on the fly:", err);
+      throw new Error(err.message || "No se pudo registrar el artículo. Verifique su conexión.");
+    }
+  };
+
   // Initial group setup (start with 1 empty article group)
   useEffect(() => {
     if (articleGroups.length === 0) {
@@ -443,6 +492,68 @@ export default function PackingListForm({
         return {
           ...g,
           rolls: g.rolls.filter(r => r.id !== rollId)
+        };
+      }
+      return g;
+    }));
+  };
+
+  const handleAddScannedRollToGroup = (groupId: string, scan: {
+    rollNumber: string;
+    meters?: number;
+    lot?: string;
+    partida?: string;
+    tono?: string;
+    width?: string;
+    weight?: string;
+    selectedRollId?: string;
+  }) => {
+    setArticleGroups(prev => prev.map(g => {
+      if (g.id === groupId) {
+        if (scan.selectedRollId) {
+          // Check if this stock roll is already added in this group to prevent duplicate scanning
+          const exists = g.rolls.some(r => r.rollId === scan.selectedRollId);
+          if (exists) {
+            alert(`El rollo en stock "${scan.rollNumber}" ya fue agregado a este artículo.`);
+            return g;
+          }
+
+          return {
+            ...g,
+            rolls: [
+              ...g.rolls,
+              {
+                id: `roll-${Date.now()}-${Math.random()}`,
+                rollId: scan.selectedRollId,
+                rollNumber: scan.rollNumber,
+                meters: scan.meters || 0,
+                maxMeters: scan.meters, // set max boundary for stock rolls
+                lot: scan.lot || g.lot || '',
+                partida: scan.partida || g.partida || '',
+                tono: scan.tono || g.tono || '',
+                width: scan.width || '',
+                weight: scan.weight || ''
+              }
+            ]
+          };
+        }
+
+        // Custom manual roll scan entry
+        return {
+          ...g,
+          rolls: [
+            ...g.rolls,
+            {
+              id: `roll-${Date.now()}-${Math.random()}`,
+              rollNumber: scan.rollNumber,
+              meters: scan.meters !== undefined ? scan.meters : (packingType === 'nuevo' ? 50 : 0),
+              lot: scan.lot || g.lot || '',
+              partida: scan.partida || g.partida || '',
+              tono: scan.tono || g.tono || '',
+              width: scan.width || '',
+              weight: scan.weight || ''
+            }
+          ]
         };
       }
       return g;
@@ -1175,6 +1286,7 @@ export default function PackingListForm({
             formProviderId={formProviderId}
             setFormProviderId={setFormProviderId}
             providers={providers}
+            onAddNewProvider={handleAddNewProvider}
           />
         </div>
 
@@ -1253,6 +1365,8 @@ export default function PackingListForm({
               onRemoveRoll={handleRemoveRollFromGroup}
               onProcessUnifiedInput={handleProcessUnifiedInput}
               onRollKeyDown={handleRollKeyDown}
+              onAddNewArticle={handleAddNewArticle}
+              onAddScannedRoll={handleAddScannedRollToGroup}
             />
           ))}
         </div>

@@ -15,6 +15,7 @@ interface ClientSellerSelectorProps {
   formProviderId: string;
   setFormProviderId: (id: string) => void;
   providers: Provider[];
+  onAddNewProvider: (name: string, fields: Record<string, string>) => Promise<string>;
 }
 
 export default function ClientSellerSelector({
@@ -28,7 +29,8 @@ export default function ClientSellerSelector({
   onAddNewSeller,
   formProviderId,
   setFormProviderId,
-  providers
+  providers,
+  onAddNewProvider
 }: ClientSellerSelectorProps) {
   return (
     <>
@@ -71,7 +73,7 @@ export default function ClientSellerSelector({
 
       <SearchableCombobox
         label="Proveedor *"
-        placeholder="Buscar Proveedor..."
+        placeholder="Buscar o registrar Proveedor..."
         value={formProviderId}
         onChange={setFormProviderId}
         options={providers.map(p => ({
@@ -80,6 +82,13 @@ export default function ClientSellerSelector({
           detail: `Lote: ${p.hasLot ? 'SÍ' : 'NO'} | Partida: ${p.hasPartida ? 'SÍ' : 'NO'}`
         }))}
         icon={<ShoppingBag size={16} />}
+        addNewText="Registrar como Nuevo Proveedor"
+        onAddNewWithFields={onAddNewProvider}
+        additionalFields={[
+          { key: 'hasLot', label: '¿Lote? (SÍ o NO)', placeholder: 'SÍ (por defecto) o NO' },
+          { key: 'hasPartida', label: '¿Partida? (SÍ o NO)', placeholder: 'SÍ (por defecto) o NO' },
+          { key: 'hasTono', label: '¿Tono? (SÍ o NO)', placeholder: 'SÍ (por defecto) o NO' }
+        ]}
       />
     </>
   );

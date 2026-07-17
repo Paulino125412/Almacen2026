@@ -1,9 +1,10 @@
-import React from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Trash2, QrCode } from 'lucide-react';
 import { Article, Provider, RollItem } from '../../types';
 import { FormArticleGroup, FormRollEntry } from './types';
 import ExcelPasteParser from './ExcelPasteParser';
 import SearchableCombobox from '../SearchableCombobox';
+import BarcodeScannerModal from '../BarcodeScannerModal';
 
 interface ArticleGroupSectionProps {
   key?: React.Key;
@@ -21,6 +22,17 @@ interface ArticleGroupSectionProps {
   onRemoveRoll: (groupId: string, rollId: string) => void;
   onProcessUnifiedInput: (groupId: string, textToProcess: string) => void;
   onRollKeyDown: (e: React.KeyboardEvent<HTMLInputElement>, groupId: string, rollIndex: number) => void;
+  onAddNewArticle: (name: string, fields: Record<string, string>) => Promise<string>;
+  onAddScannedRoll: (groupId: string, scan: {
+    rollNumber: string;
+    meters?: number;
+    lot?: string;
+    partida?: string;
+    tono?: string;
+    width?: string;
+    weight?: string;
+    selectedRollId?: string;
+  }) => void;
 }
 
 export default function ArticleGroupSection({
@@ -37,10 +49,21 @@ export default function ArticleGroupSection({
   onAddRoll,
   onRemoveRoll,
   onProcessUnifiedInput,
-  onRollKeyDown
+  onRollKeyDown,
+  onAddNewArticle,
+  onAddScannedRoll
 }: ArticleGroupSectionProps) {
   const pConfig = providers.find(p => p.id === group.providerId) || null;
   const isExcelOnly = pConfig && (pConfig.hasRollNo ?? true) && pConfig.hasWidth && pConfig.hasWeight;
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  const handleOpenScanner = () => {
+    if (!group.articleId) {
+      alert("Debe seleccionar un Artículo (Tela) primero antes de activar el escáner de la cámara.");
+      return;
+    }
+    setIsScannerOpen(true);
+  };
 
   return (
     <div className="p-5 border-2 border-app-border hover:border-app-border/80 rounded-xl bg-app-surface shadow-xs space-y-4 relative group">
@@ -91,12 +114,17 @@ export default function ArticleGroupSection({
           <div>
             <SearchableCombobox
               label="Artículo (Tela) *"
-              placeholder="Buscar Artículo..."
+              placeholder="Buscar o registrar Artículo..."
               value={group.articleId}
               onChange={val => onGroupFieldChange(group.id, 'articleId', val)}
               options={articles
                 .filter(a => a.providerId === formProviderId)
                 .map(a => ({ id: a.id, name: a.name }))}
+              addNewText="Registrar como Nuevo Artículo (Tela)"
+              onAddNewWithFields={onAddNewArticle}
+              additionalFields={[
+                { key: 'description', label: 'Descripción', placeholder: 'Ingrese descripción (Opcional)' }
+              ]}
             />
           </div>
         ) : (
@@ -218,14 +246,26 @@ export default function ArticleGroupSection({
               : `Cantidades de Metraje para este Artículo (${group.rolls.length})`}
           </p>
           {!isExcelOnly ? (
-            <button
-              type="button"
-              onClick={() => onAddRoll(group.id)}
-              className="px-2.5 py-1 bg-app-surface hover:bg-app-bg border border-app-border text-app-text rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition cursor-pointer shadow-2xs"
-            >
-              <Plus size={10} />
-              {packingType === 'corte' ? 'Añadir Corte Manual' : 'Añadir Fila Manual'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenScanner}
+                className="px-2.5 py-1 bg-green-50 hover:bg-green-100 dark:bg-green-950/30 dark:hover:bg-green-950 dark:border-green-800 dark:text-green-300 border border-green-200 text-green-700 rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                title="Escanear etiquetas de rollos con la cámara"
+              >
+                <QrCode size={11} className="text-green-600 dark:text-green-400" />
+                Escanear Cámara (QR/Barra)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onAddRoll(group.id)}
+                className="px-2.5 py-1 bg-app-surface hover:bg-app-bg border border-app-border text-app-text rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition cursor-pointer shadow-2xs"
+              >
+                <Plus size={10} />
+                {packingType === 'corte' ? 'Añadir Corte Manual' : 'Añadir Fila Manual'}
+              </button>
+            </div>
           ) : (
             <span className="text-[10px] font-extrabold text-app-primary bg-app-bg px-2.5 py-1 rounded border border-app-border">
               Solo permitido Pegar desde Excel
@@ -402,6 +442,13 @@ export default function ArticleGroupSection({
         </div>
       </div>
 
+      <BarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanResult={(scan) => onAddScannedRoll(group.id, scan)}
+        availableRolls={availableRolls}
+        groupArticleId={group.articleId}
+      />
     </div>
   );
 }
