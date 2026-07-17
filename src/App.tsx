@@ -189,8 +189,8 @@ export default function App() {
       // Safety timeout: if Firestore takes too long to load (e.g., initial DB setup latency),
       // fallback to local storage so user doesn't get stuck on loading screen
       timeoutId = setTimeout(() => {
-        triggerFallback("Firestore connection timeout (2.5 seconds)");
-      }, 2500);
+        triggerFallback("Firestore connection timeout (8 seconds)");
+      }, 8000);
 
       try {
         // Seed first to prevent empty dashboard
@@ -629,7 +629,7 @@ export default function App() {
             
             <div className="p-6 space-y-4">
               <p className="text-xs font-semibold leading-relaxed text-app-text">
-                No se pudo conectar a la base de datos en la nube. ¿Deseas trabajar en modo local temporal o reintentar la conexión?
+                No se pudo establecer conexión con la base de datos en la nube. Si ya trabajaste antes en este navegador, tus datos guardados y cualquier cambio que hagas ahora probablemente se sincronizarán solos en cuanto vuelva la conexión a internet, gracias al almacenamiento offline de Firestore. El 'Modo Local' de abajo es solo un respaldo adicional que usa datos de ejemplo (no tus datos reales) y es recomendable solo si esta pantalla vuelve a aparecer repetidamente.
               </p>
               <div className="bg-app-bg border border-app-border rounded-lg p-3 text-[10px] text-app-text/70 leading-normal font-mono">
                 <span className="block font-bold text-app-text uppercase mb-1 tracking-wider text-[9px]">Aviso de sincronización:</span>
