@@ -51,6 +51,8 @@ export interface RollItem {
   createdAt: string;
   updatedAt: string;
   appVersion?: string;
+  width?: string;
+  weight?: string;
 }
 
 export interface PackingListItem {

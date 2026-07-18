@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { RollItem, Provider, Article } from '../types';
 import { db, addDoc, updateDoc, deleteDoc } from '../firebase';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, setDoc } from 'firebase/firestore';
+import InventoryExcelPasteParser from './inventory/InventoryExcelPasteParser';
 import { Search, Filter, Plus, FileSpreadsheet, Info, Wrench, Trash2, ShieldAlert, ArrowDownUp, X, CheckCircle, RefreshCw } from 'lucide-react';
 
 interface InventoryManagerProps {
@@ -30,6 +31,7 @@ export default function InventoryManager({
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addMode, setAddMode] = useState<'individual' | 'excel'>('individual');
 
   const [rollNo, setRollNo] = useState('');
   const [selectedProvId, setSelectedProvId] = useState('');
@@ -38,6 +40,8 @@ export default function InventoryManager({
   const [lot, setLot] = useState('');
   const [partida, setPartida] = useState('');
   const [tono, setTono] = useState('');
+  const [width, setWidth] = useState('');
+  const [weight, setWeight] = useState('');
 
   // Adjustment State
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
@@ -65,6 +69,8 @@ export default function InventoryManager({
     setPartida('');
     setTono('');
     setRollNo('');
+    setWidth('');
+    setWeight('');
   };
 
   // Filtered inventory
@@ -75,7 +81,7 @@ export default function InventoryManager({
       const articleName = article?.name || '';
       const provider = providers.find(p => p.id === item.providerId);
       const providerName = provider?.name || '';
-      const textToSearch = `${item.rollNumber} ${articleName} ${providerName} ${item.lot || ''} ${item.partida || ''} ${item.tono || ''}`.toLowerCase();
+      const textToSearch = `${item.rollNumber} ${articleName} ${providerName} ${item.lot || ''} ${item.partida || ''} ${item.tono || ''} ${item.width || ''} ${item.weight || ''}`.toLowerCase();
       const matchesSearch = textToSearch.includes(searchTerm.toLowerCase());
 
       // 2. Provider Filter
@@ -107,7 +113,14 @@ export default function InventoryManager({
     }
 
     let csvContent = '\uFEFF'; // UTF-8 BOM
-    csvContent += 'Nº Rollo,Artículo,Proveedor,Lote,Partida,Tono,Mts Iniciales,Mts Actuales,Estado,Fecha de Ingreso\n';
+    const hasWidth = filteredInventory.some(item => item.width && item.width.trim() !== '');
+    const hasWeight = filteredInventory.some(item => item.weight && item.weight.trim() !== '');
+
+    let headers = ['Nº Rollo', 'Artículo', 'Proveedor', 'Lote', 'Partida', 'Tono'];
+    if (hasWidth) headers.push('Ancho');
+    if (hasWeight) headers.push('Peso');
+    headers.push('Mts Iniciales', 'Mts Actuales', 'Estado', 'Fecha de Ingreso');
+    csvContent += headers.join(',') + '\n';
 
     filteredInventory.forEach(item => {
       const art = articles.find(a => a.id === item.articleId)?.name || '-';
@@ -121,12 +134,16 @@ export default function InventoryManager({
         `"${prov}"`,
         `"${item.lot || '-'}"`,
         `"${item.partida || '-'}"`,
-        `"${item.tono || '-'}"`,
+        `"${item.tono || '-'}"`
+      ];
+      if (hasWidth) row.push(`"${item.width || '-'}"`);
+      if (hasWeight) row.push(`"${item.weight || '-'}"`);
+      row.push(
         item.initialMeters,
         item.currentMeters,
         `"${statusLabel}"`,
         `"${formattedDate}"`
-      ];
+      );
       csvContent += row.join(',') + '\n';
     });
 
@@ -167,6 +184,8 @@ export default function InventoryManager({
       const finalLot = activeProviderConfig?.hasLot ? lot.trim() : '';
       const finalPartida = activeProviderConfig?.hasPartida ? partida.trim() : '';
       const finalTono = activeProviderConfig?.hasTono ? tono.trim() : '';
+      const finalWidth = activeProviderConfig?.hasWidth ? width.trim() : '';
+      const finalWeight = activeProviderConfig?.hasWeight ? weight.trim() : '';
 
       if ((activeProviderConfig?.hasRollNo ?? true) && !finalRollNo) {
         throw new Error('El proveedor requiere ingresar un número de rollo.');
@@ -187,6 +206,8 @@ export default function InventoryManager({
         lot: finalLot,
         partida: finalPartida,
         tono: finalTono,
+        width: finalWidth,
+        weight: finalWeight,
         status: 'available',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -196,9 +217,9 @@ export default function InventoryManager({
       // Add to firestore
       const docRef = doc(db, 'inventory', newId);
       await updateDoc(docRef, rollData as any).catch(async () => {
-        // Fallback if updateDoc fails (doesn't exist), we setDoc
-        const { setDoc } = await import('firebase/firestore');
-        await setDoc(docRef, rollData);
+         // Fallback if updateDoc fails (doesn't exist), we setDoc
+         const { setDoc } = await import('firebase/firestore');
+         await setDoc(docRef, rollData);
       });
 
       await onRefresh();
@@ -208,11 +229,45 @@ export default function InventoryManager({
       setLot('');
       setPartida('');
       setTono('');
+      setWidth('');
+      setWeight('');
       setInitialMeters(100);
       setShowAddForm(false);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Error al registrar el rollo');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Submit bulk roll registration
+  const handleBulkImport = async (newRolls: Omit<RollItem, 'id'>[]) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Loop through and insert all rolls
+      for (const roll of newRolls) {
+        const newId = `roll-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+        const docRef = doc(db, 'inventory', newId);
+        await setDoc(docRef, roll);
+      }
+
+      await onRefresh();
+      
+      // Reset form variables
+      setRollNo('');
+      setLot('');
+      setPartida('');
+      setTono('');
+      setWidth('');
+      setWeight('');
+      setInitialMeters(100);
+      setShowAddForm(false);
+    } catch (err: any) {
+      console.error("Bulk import failed:", err);
+      setError(err.message || 'Error al guardar los rollos en la base de datos.');
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -326,7 +381,40 @@ export default function InventoryManager({
             </div>
           )}
 
-          <form onSubmit={handleAddRollSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Modes selector tabs */}
+          <div className="flex border-b border-app-border mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setAddMode('individual');
+                setError(null);
+              }}
+              className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition cursor-pointer ${
+                addMode === 'individual'
+                  ? 'border-app-primary text-app-primary'
+                  : 'border-transparent text-app-text/50 hover:text-app-text'
+              }`}
+            >
+              Agregar Rollo Individual
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAddMode('excel');
+                setError(null);
+              }}
+              className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition cursor-pointer ${
+                addMode === 'excel'
+                  ? 'border-app-primary text-app-primary'
+                  : 'border-transparent text-app-text/50 hover:text-app-text'
+              }`}
+            >
+              Pegar desde Excel (Carga Masiva)
+            </button>
+          </div>
+
+          {addMode === 'individual' ? (
+            <form onSubmit={handleAddRollSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* 1. Provider */}
             <div>
               <label className="block text-[11px] font-bold text-app-text/60 mb-1.5 uppercase tracking-wider">1. Seleccionar Proveedor *</label>
@@ -482,18 +570,128 @@ export default function InventoryManager({
               </div>
             )}
 
+            {/* Dynamic field: Ancho */}
+            {activeProviderConfig?.hasWidth ? (
+              <div>
+                <label className="block text-[11px] font-bold text-app-text/60 mb-1.5 uppercase tracking-wider">Ancho *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. 1.60"
+                  value={width}
+                  onChange={e => setWidth(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-app-border rounded text-xs focus:ring-1 focus:ring-app-primary focus:outline-hidden bg-app-surface text-app-text font-mono"
+                  id="add-roll-width"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-[11px] font-bold text-app-text/45 mb-1.5 uppercase tracking-wider">Ancho</label>
+                <input
+                  type="text"
+                  disabled
+                  value="N/A (Desactivado)"
+                  className="w-full px-3 py-1.5 border border-app-border rounded text-xs bg-app-bg text-app-text/45 font-mono"
+                />
+              </div>
+            )}
+
+            {/* Dynamic field: Peso */}
+            {activeProviderConfig?.hasWeight ? (
+              <div>
+                <label className="block text-[11px] font-bold text-app-text/60 mb-1.5 uppercase tracking-wider">Peso *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. 25.4"
+                  value={weight}
+                  onChange={e => setWeight(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-app-border rounded text-xs focus:ring-1 focus:ring-app-primary focus:outline-hidden bg-app-surface text-app-text font-mono"
+                  id="add-roll-weight"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-[11px] font-bold text-app-text/45 mb-1.5 uppercase tracking-wider">Peso</label>
+                <input
+                  type="text"
+                  disabled
+                  value="N/A (Desactivado)"
+                  className="w-full px-3 py-1.5 border border-app-border rounded text-xs bg-app-bg text-app-text/45 font-mono"
+                />
+              </div>
+            )}
+
             {/* Submit button */}
-            <div className="flex items-end justify-end md:col-span-1">
+            <div className="flex items-end justify-end md:col-span-4 mt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-1.5 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-xs transition cursor-pointer shadow-xs disabled:opacity-50 uppercase tracking-wider"
+                className="w-full md:w-auto px-6 py-2 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-xs transition cursor-pointer shadow-xs disabled:opacity-50 uppercase tracking-wider"
                 id="btn-submit-add-roll"
               >
                 {loading ? 'Procesando...' : 'Guardar Ingreso'}
               </button>
             </div>
           </form>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-app-bg border border-app-border p-4 rounded-lg">
+                {/* 1. Provider */}
+                <div>
+                  <label className="block text-[11px] font-bold text-app-text/60 mb-1.5 uppercase tracking-wider">1. Seleccionar Proveedor *</label>
+                  <select
+                    required
+                    value={selectedProvId}
+                    onChange={e => handleProviderChange(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-app-border rounded text-xs bg-app-surface text-app-text focus:ring-1 focus:ring-app-primary focus:outline-hidden font-medium"
+                    id="add-roll-excel-prov"
+                  >
+                    <option value="">-- Seleccione Proveedor --</option>
+                    {providers.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Article */}
+                <div>
+                  <label className="block text-[11px] font-bold text-app-text/60 mb-1.5 uppercase tracking-wider">2. Artículo (Tela) *</label>
+                  <select
+                    required
+                    value={selectedArtId}
+                    onChange={e => setSelectedArtId(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-app-border rounded text-xs bg-app-surface text-app-text focus:ring-1 focus:ring-app-primary focus:outline-hidden font-medium"
+                    id="add-roll-excel-art"
+                  >
+                    <option value="">-- Seleccione Artículo --</option>
+                    {articles
+                      .filter(a => !selectedProvId || a.providerId === selectedProvId)
+                      .map(a => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              {selectedProvId && selectedArtId ? (
+                <InventoryExcelPasteParser
+                  provider={providers.find(p => p.id === selectedProvId) || null}
+                  article={articles.find(a => a.id === selectedArtId) || null}
+                  existingInventory={inventory}
+                  onImportComplete={handleBulkImport}
+                  onCancel={() => {
+                    setAddMode('individual');
+                    setShowAddForm(false);
+                  }}
+                />
+              ) : (
+                <div className="p-8 text-center text-app-text/50 border border-dashed border-app-border rounded-lg bg-app-bg/50">
+                  <p className="text-xs font-medium">Por favor elija un Proveedor y un Artículo para habilitar la carga masiva.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -611,6 +809,12 @@ export default function InventoryManager({
                 <th className="p-4 font-mono">Lote</th>
                 <th className="p-4 font-mono">Partida</th>
                 <th className="p-4 font-mono">Tono</th>
+                {filteredInventory.some(item => item.width && item.width.trim() !== '') && (
+                  <th className="p-4 font-mono text-center">Ancho</th>
+                )}
+                {filteredInventory.some(item => item.weight && item.weight.trim() !== '') && (
+                  <th className="p-4 font-mono text-center">Peso</th>
+                )}
                 <th className="p-4 text-right">Mts. Iniciales</th>
                 <th className="p-4 text-right">Mts. Disponibles</th>
                 <th className="p-4 text-center">Estado</th>
@@ -620,7 +824,14 @@ export default function InventoryManager({
             <tbody className="divide-y divide-app-border/40 text-xs text-app-text">
               {filteredInventory.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-12 text-center text-app-text/50 font-medium">
+                  <td
+                    colSpan={
+                      10 +
+                      (filteredInventory.some(item => item.width && item.width.trim() !== '') ? 1 : 0) +
+                      (filteredInventory.some(item => item.weight && item.weight.trim() !== '') ? 1 : 0)
+                    }
+                    className="p-12 text-center text-app-text/50 font-medium"
+                  >
                     No se encontraron rollos de tela con los criterios seleccionados.
                   </td>
                 </tr>
@@ -644,6 +855,12 @@ export default function InventoryManager({
                       <td className="p-4 font-mono">{item.lot || '-'}</td>
                       <td className="p-4 font-mono">{item.partida || '-'}</td>
                       <td className="p-4 font-mono">{item.tono || '-'}</td>
+                      {filteredInventory.some(r => r.width && r.width.trim() !== '') && (
+                        <td className="p-4 font-mono text-center">{item.width || '-'}</td>
+                      )}
+                      {filteredInventory.some(r => r.weight && r.weight.trim() !== '') && (
+                        <td className="p-4 font-mono text-center">{item.weight || '-'}</td>
+                      )}
                       <td className="p-4 text-right font-mono font-medium text-app-text/45">{item.initialMeters.toFixed(2)} m</td>
                       <td className={`p-4 text-right font-mono font-bold ${isAvailable ? 'text-app-secondary text-sm' : 'text-app-text/45'}`}>
                         {item.currentMeters.toFixed(2)} m

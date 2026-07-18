@@ -506,6 +506,8 @@ export default function PackingListForm({
     tono?: string;
     width?: string;
     weight?: string;
+    rollId?: string;
+    maxMeters?: number;
   }) => {
     setArticleGroups(prev => prev.map(g => {
       if (g.id === groupId) {
@@ -517,7 +519,9 @@ export default function PackingListForm({
             {
               id: `roll-${Date.now()}-${Math.random()}`,
               rollNumber: scan.rollNumber,
+              rollId: scan.rollId,
               meters: scan.meters !== undefined ? scan.meters : (packingType === 'nuevo' ? 50 : 0),
+              maxMeters: scan.maxMeters,
               lot: scan.lot || g.lot || '',
               partida: scan.partida || g.partida || '',
               tono: scan.tono || g.tono || '',

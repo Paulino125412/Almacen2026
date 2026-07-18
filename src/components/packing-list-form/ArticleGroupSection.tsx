@@ -31,6 +31,8 @@ interface ArticleGroupSectionProps {
     tono?: string;
     width?: string;
     weight?: string;
+    rollId?: string;
+    maxMeters?: number;
   }) => void;
 }
 
@@ -444,7 +446,36 @@ export default function ArticleGroupSection({
       <BarcodeScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        onScanResult={(scan) => onAddScannedRoll(group.id, scan)}
+        onScanResult={(scan) => {
+          if (group.source === 'inventory') {
+            const foundRoll = availableRolls.find(
+              r => r.articleId === group.articleId &&
+                   r.rollNumber.trim().toLowerCase() === scan.rollNumber.trim().toLowerCase()
+            );
+            if (foundRoll) {
+              const emptyRoll = group.rolls.find(r => !r.rollId);
+              if (emptyRoll) {
+                onRollFieldChange(group.id, emptyRoll.id, 'rollId', foundRoll.id);
+              } else {
+                onAddScannedRoll(group.id, {
+                  rollNumber: foundRoll.rollNumber,
+                  rollId: foundRoll.id,
+                  meters: foundRoll.currentMeters,
+                  maxMeters: foundRoll.currentMeters,
+                  lot: foundRoll.lot,
+                  partida: foundRoll.partida,
+                  tono: foundRoll.tono,
+                  width: foundRoll.width,
+                  weight: foundRoll.weight
+                });
+              }
+            } else {
+              alert("Rollo no encontrado en inventario");
+            }
+          } else {
+            onAddScannedRoll(group.id, scan);
+          }
+        }}
       />
     </div>
   );
