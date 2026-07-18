@@ -244,18 +244,18 @@ export default function ArticleGroupSection({
               ? `Cantidades de Corte para este Artículo (${group.rolls.length})`
               : `Cantidades de Metraje para este Artículo (${group.rolls.length})`}
           </p>
-          {!isExcelOnly ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleOpenScanner}
-                className="px-2.5 py-1 bg-app-secondary/10 hover:bg-app-secondary/20 dark:bg-app-secondary/20 dark:hover:bg-app-secondary/35 border border-app-secondary/30 dark:border-app-secondary/40 text-app-secondary rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                title="Escanear etiquetas de rollos con la cámara"
-              >
-                <QrCode size={11} className="text-app-secondary" />
-                Escanear Cámara (QR/Barra)
-              </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleOpenScanner}
+              className="px-2.5 py-1 bg-app-secondary/10 hover:bg-app-secondary/20 dark:bg-app-secondary/20 dark:hover:bg-app-secondary/35 border border-app-secondary/30 dark:border-app-secondary/40 text-app-secondary rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+              title="Escanear etiquetas de rollos con la cámara"
+            >
+              <QrCode size={11} className="text-app-secondary" />
+              Escanear Cámara (QR/Barra)
+            </button>
 
+            {!isExcelOnly ? (
               <button
                 type="button"
                 onClick={() => onAddRoll(group.id)}
@@ -264,12 +264,12 @@ export default function ArticleGroupSection({
                 <Plus size={10} />
                 {packingType === 'corte' ? 'Añadir Corte Manual' : 'Añadir Fila Manual'}
               </button>
-            </div>
-          ) : (
-            <span className="text-[10px] font-extrabold text-app-primary bg-app-bg px-2.5 py-1 rounded border border-app-border">
-              Solo permitido Pegar desde Excel
-            </span>
-          )}
+            ) : (
+              <span className="text-[10px] font-extrabold text-app-primary bg-app-bg px-2.5 py-1 rounded border border-app-border">
+                Solo permitido Pegar desde Excel
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Quick-add field for custom entry */}

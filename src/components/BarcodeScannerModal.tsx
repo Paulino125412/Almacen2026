@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Camera, RefreshCw, AlertTriangle, CheckCircle, Info } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 interface BarcodeScannerModalProps {
   isOpen: boolean;
@@ -240,7 +240,19 @@ export default function BarcodeScannerModal({
     // Give DOM 100ms to render the container div before starting
     setTimeout(async () => {
       try {
-        const html5Qrcode = new Html5Qrcode(scannerId);
+        const html5Qrcode = new Html5Qrcode(scannerId, {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E
+          ],
+          verbose: false
+        });
         html5QrcodeRef.current = html5Qrcode;
 
         await html5Qrcode.start(
@@ -248,11 +260,13 @@ export default function BarcodeScannerModal({
           {
             fps: 15,
             qrbox: (width, height) => {
-              // Target scan square
-              const size = Math.min(width, height) * 0.75;
+              // Target a rectangular box that is wider than it is high (280x140)
+              // adapting dynamically but respecting the target sizes and proportional limits
+              const targetWidth = Math.max(180, Math.min(width * 0.85, 280));
+              const targetHeight = Math.max(90, Math.min(height * 0.45, 140));
               return {
-                width: Math.max(180, Math.min(size, 260)),
-                height: Math.max(180, Math.min(size, 260))
+                width: Math.round(targetWidth),
+                height: Math.round(targetHeight)
               };
             },
             aspectRatio: 1.0
@@ -345,7 +359,7 @@ export default function BarcodeScannerModal({
                     <div className="absolute left-4 right-4 top-1/2 h-0.5 bg-app-secondary shadow-[0_0_8px_var(--app-secondary)] animate-pulse z-10" />
 
                     {/* Target scan area box visualizer overlay */}
-                    <div className="absolute inset-0 border-[35px] border-black/35 pointer-events-none flex items-center justify-center">
+                    <div className="absolute inset-0 border-x-0 border-y-[70px] border-black/35 pointer-events-none flex items-center justify-center">
                       <div className="w-full h-full border border-app-secondary/50 relative">
                         {/* L-shaped corners for focus guidance */}
                         <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-app-secondary" />
