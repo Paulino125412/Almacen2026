@@ -7,7 +7,8 @@ import {
   getLocalMode,
   setLocalMode,
   getLocalStorageCollection,
-  seedLocalStorage
+  seedLocalStorage,
+  syncLocalDataToCloud
 } from './firebase';
 import { collection, onSnapshot, getDocs } from 'firebase/firestore';
 import { Client, Seller, Provider, Article, RollItem, PackingList } from './types';
@@ -121,6 +122,60 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isLocal, setIsLocal] = useState(getLocalMode());
   const [showConnectionErrorModal, setShowConnectionErrorModal] = useState(false);
+
+  const [hasPendingSync, setHasPendingSync] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResultModal, setSyncResultModal] = useState<{
+    isOpen: boolean;
+    success: boolean;
+    message: string;
+    counts?: {
+      providers: number;
+      articles: number;
+      clients: number;
+      sellers: number;
+      inventory: number;
+      packinglists: number;
+    };
+  } | null>(null);
+
+  useEffect(() => {
+    const collections = ['providers', 'articles', 'clients', 'sellers', 'inventory', 'packinglists'];
+    const hasPending = collections.some(col => {
+      const items = getLocalStorageCollection(col);
+      return items.some((item: any) => item.id && String(item.id).startsWith('local-'));
+    });
+    setHasPendingSync(hasPending);
+  }, [isLocal, clients, sellers, providers, articles, inventory, packingLists]);
+
+  const handleSyncLocalData = async () => {
+    setIsSyncing(true);
+    try {
+      const result = await syncLocalDataToCloud();
+      if (result.success) {
+        setSyncResultModal({
+          isOpen: true,
+          success: true,
+          message: '¡Los datos creados en modo local se han sincronizado exitosamente con la nube!',
+          counts: result.uploadedCounts
+        });
+      } else {
+        setSyncResultModal({
+          isOpen: true,
+          success: false,
+          message: result.error || 'Ocurrió un error inesperado al intentar sincronizar los datos.'
+        });
+      }
+    } catch (err: any) {
+      setSyncResultModal({
+        isOpen: true,
+        success: false,
+        message: `Fallo inesperado: ${err?.message || err}`
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const loadLocalData = () => {
     seedLocalStorage();
@@ -582,9 +637,28 @@ export default function App() {
 
         {/* High Density Status Bar - Bottom (no-print) */}
         <footer className="bg-app-surface text-app-text/50 px-6 py-2.5 text-[9px] flex flex-wrap justify-between items-center border-t border-app-border no-print font-mono">
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 flex-wrap">
             <span className="h-1.5 w-1.5 rounded-full bg-app-secondary animate-pulse"></span>
             WMS Mode: {isLocal ? "Local Demo Offline" : "Firestore Production DB"} • LiveSync • TLS Secure
+            {isLocal && hasPendingSync && (
+              <button
+                onClick={handleSyncLocalData}
+                disabled={isSyncing}
+                className="ml-3 px-2 py-0.5 bg-app-primary hover:bg-app-primary/95 text-white font-semibold rounded text-[8px] uppercase tracking-wider flex items-center gap-1 cursor-pointer transition duration-150 disabled:opacity-50"
+              >
+                {isSyncing ? (
+                  <>
+                    <RefreshCw size={8} className="animate-spin" />
+                    Sincronizando...
+                  </>
+                ) : (
+                  <>
+                    <CloudLightning size={8} />
+                    Subir Datos Locales a la Nube
+                  </>
+                )}
+              </button>
+            )}
           </span>
           <span className="uppercase tracking-wider">
             © 2026 Sistema WMS • Almacén y Logística
@@ -651,6 +725,89 @@ export default function App() {
                 className="px-4 py-2 bg-app-secondary hover:bg-app-secondary/90 text-white rounded-lg text-xs font-extrabold transition flex items-center justify-center cursor-pointer shadow-sm uppercase tracking-wider text-center"
               >
                 Trabajar en modo local (los datos no se sincronizarán)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Synchronization Status Modal */}
+      {syncResultModal && syncResultModal.isOpen && (
+        <div translate="no" className="fixed inset-0 bg-app-bg/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in no-print notranslate">
+          <div className="bg-app-surface border border-app-border rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-slide-up text-app-text">
+            <div className={`border-b border-app-border p-5 flex items-start gap-3.5 ${syncResultModal.success ? 'bg-app-secondary/10' : 'bg-red-500/10'}`}>
+              <div className={`p-2.5 rounded-lg shrink-0 border ${syncResultModal.success ? 'bg-app-secondary/20 text-app-secondary border-app-secondary/20' : 'bg-red-500/20 text-red-500 border-red-500/20'}`}>
+                {syncResultModal.success ? (
+                  <RefreshCw size={20} className="stroke-[2]" />
+                ) : (
+                  <CloudLightning size={20} className="stroke-[2] animate-bounce" />
+                )}
+              </div>
+              <div>
+                <h4 className="text-xs font-extrabold text-app-text uppercase tracking-wider">
+                  {syncResultModal.success ? 'Sincronización Exitosa' : 'Error de Sincronización'}
+                </h4>
+                <p className={`text-[10px] font-bold uppercase tracking-widest mt-0.5 ${syncResultModal.success ? 'text-app-secondary' : 'text-red-500'}`}>
+                  {syncResultModal.success ? 'DATOS SUBIDOS A FIRESTORE' : 'PROCESO DETENIDO'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <p className="text-xs font-semibold leading-relaxed text-app-text whitespace-pre-line">
+                {syncResultModal.message}
+              </p>
+              
+              {syncResultModal.success && syncResultModal.counts && (
+                <div className="bg-app-bg border border-app-border rounded-lg p-4 text-[11px] leading-relaxed font-mono space-y-1.5">
+                  <span className="block font-bold text-app-text uppercase mb-2 tracking-wider text-[9px]">Registros Sincronizados:</span>
+                  <div className="flex justify-between border-b border-app-border/40 pb-1">
+                    <span>Proveedores:</span>
+                    <span className="font-bold text-app-secondary">{syncResultModal.counts.providers}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-app-border/40 pb-1">
+                    <span>Artículos:</span>
+                    <span className="font-bold text-app-secondary">{syncResultModal.counts.articles}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-app-border/40 pb-1">
+                    <span>Clientes:</span>
+                    <span className="font-bold text-app-secondary">{syncResultModal.counts.clients}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-app-border/40 pb-1">
+                    <span>Vendedores:</span>
+                    <span className="font-bold text-app-secondary">{syncResultModal.counts.sellers}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-app-border/40 pb-1">
+                    <span>Inventario de Rollos:</span>
+                    <span className="font-bold text-app-secondary">{syncResultModal.counts.inventory}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Packing Lists:</span>
+                    <span className="font-bold text-app-secondary">{syncResultModal.counts.packinglists}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="bg-app-bg/60 px-6 py-4 border-t border-app-border flex justify-end">
+              <button
+                onClick={() => {
+                  const succeeded = syncResultModal.success;
+                  setSyncResultModal(null);
+                  if (succeeded) {
+                    setLocalMode(false);
+                    setIsLocal(false);
+                    setLoading(true);
+                    window.location.reload();
+                  }
+                }}
+                className={`px-5 py-2.5 rounded-lg text-xs font-extrabold transition cursor-pointer shadow-sm uppercase tracking-wider ${
+                  syncResultModal.success 
+                    ? 'bg-app-secondary hover:bg-app-secondary/90 text-white' 
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+                }`}
+              >
+                {syncResultModal.success ? 'Aceptar y Reconectar' : 'Cerrar'}
               </button>
             </div>
           </div>

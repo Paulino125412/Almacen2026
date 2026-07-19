@@ -343,3 +343,48 @@ export async function seedDatabaseIfEmpty() {
     handleFirestoreError(error, OperationType.WRITE, 'seeding');
   }
 }
+
+export async function syncLocalDataToCloud() {
+  const collectionsToSync = ['providers', 'articles', 'clients', 'sellers', 'inventory', 'packinglists'] as const;
+  const uploadedCounts = {
+    providers: 0,
+    articles: 0,
+    clients: 0,
+    sellers: 0,
+    inventory: 0,
+    packinglists: 0
+  };
+
+  try {
+    for (const collectionName of collectionsToSync) {
+      const localData = getLocalStorageCollection(collectionName);
+      const itemsToSync = localData.filter((item: any) => item.id && String(item.id).startsWith('local-'));
+
+      for (const item of itemsToSync) {
+        await setDoc(doc(db, collectionName, item.id), item);
+        uploadedCounts[collectionName]++;
+      }
+    }
+
+    // If everything succeeded without errors, remove only synced items from localStorage
+    for (const collectionName of collectionsToSync) {
+      const localData = getLocalStorageCollection(collectionName);
+      const remainingItems = localData.filter((item: any) => !(item.id && String(item.id).startsWith('local-')));
+      setLocalStorageCollection(collectionName, remainingItems);
+    }
+
+    return {
+      success: true,
+      uploadedCounts
+    };
+  } catch (error: any) {
+    const totalCount = Object.values(uploadedCounts).reduce((a, b) => a + b, 0);
+    const errorMessage = `Fallo al sincronizar los datos locales. Se subieron exitosamente ${totalCount} registros antes de ocurrir el error: ${error?.message || error}`;
+    console.error(errorMessage);
+    return {
+      success: false,
+      uploadedCounts,
+      error: errorMessage
+    };
+  }
+}
