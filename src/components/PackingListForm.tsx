@@ -1332,6 +1332,8 @@ export default function PackingListForm({
               providers={providers}
               packingType={packingType}
               availableRolls={availableRolls}
+              allInventory={inventory}
+              packingLists={packingLists}
               formProviderId={formProviderId}
               onRemove={handleRemoveArticleGroup}
               onGroupFieldChange={handleGroupFieldChange}

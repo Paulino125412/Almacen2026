@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, QrCode } from 'lucide-react';
-import { Article, Provider, RollItem } from '../../types';
+import { Article, Provider, RollItem, PackingList } from '../../types';
 import { FormArticleGroup, FormRollEntry } from './types';
 import ExcelPasteParser from './ExcelPasteParser';
 import SearchableCombobox from '../SearchableCombobox';
@@ -14,6 +14,8 @@ interface ArticleGroupSectionProps {
   providers: Provider[];
   packingType: 'nuevo' | 'antiguo' | 'corte' | 'rollo';
   availableRolls: RollItem[];
+  allInventory: RollItem[];
+  packingLists: PackingList[];
   formProviderId: string;
   onRemove: (groupId: string) => void;
   onGroupFieldChange: (groupId: string, field: keyof FormArticleGroup, value: any) => void;
@@ -43,6 +45,8 @@ export default function ArticleGroupSection({
   providers,
   packingType,
   availableRolls,
+  allInventory,
+  packingLists,
   formProviderId,
   onRemove,
   onGroupFieldChange,
@@ -469,7 +473,24 @@ export default function ArticleGroupSection({
               });
             }
           } else {
-            onAddScannedRoll(group.id, scan);
+            const depletedRoll = allInventory.find(
+              r => r.articleId === group.articleId &&
+                   r.rollNumber.trim().toLowerCase() === scan.rollNumber.trim().toLowerCase()
+            );
+            if (depletedRoll) {
+              const usedPL = packingLists.find(pl =>
+                pl.items.some(item => item.rollId === depletedRoll.id)
+              );
+              const packingListNo = usedPL ? usedPL.packingListNo : 'desconocido';
+              const confirmed = window.confirm(
+                `Este rollo (${depletedRoll.rollNumber}) ya fue registrado como agotado. Se usó en el Packing List N° ${packingListNo}. ¿Deseas continuar de todas formas y cargarlo como entrada manual?`
+              );
+              if (confirmed) {
+                onAddScannedRoll(group.id, scan);
+              }
+            } else {
+              onAddScannedRoll(group.id, scan);
+            }
           }
         }}
       />
