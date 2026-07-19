@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { PackingList, PackingListItem, Client, Seller, Provider, Article } from '../types';
 import { FileText, Printer, X, AlertTriangle, MessageCircle } from 'lucide-react';
 
-const ROWS_PER_PAGE = 35;
+const ROWS_PER_PAGE = 28;
 
 export interface PrintableRow {
   type: 'header' | 'roll' | 'footer';
@@ -406,7 +406,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
                   providers={providers}
                   isLastPage={pageIdx === paginatedBlocks.length - 1}
                   bottomContent={
-                    <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black">
+                    <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black print:bg-white">
                       <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
                         AVISO IMPORTANTE
                       </h3>
@@ -441,7 +441,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
                   providers={providers}
                   isLastPage={pageIdx === paginatedBlocks.length - 1}
                   bottomContent={
-                    <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black">
+                    <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black print:bg-white">
                       <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
                         AVISO IMPORTANTE
                       </h3>
@@ -522,7 +522,7 @@ function PaginatedSinglePrintPage({
     + (hasWeight ? 1 : 0);
 
   return (
-    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text p-8 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 print-page print:border-none print:shadow-none print:p-0 print:my-0 flex flex-col justify-between">
+    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text p-8 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 print-page print:border-none print:shadow-none print:p-0 print:my-0 print:bg-white flex flex-col justify-between">
       <div>
         <div className="flex justify-between items-center mb-6">
           <div className="flex flex-col">
@@ -578,7 +578,7 @@ function PaginatedSinglePrintPage({
               {block.map((row, idx) => {
                 if (row.type === 'header') {
                   return (
-                    <tr key={`h-${row.articleId}-${idx}`} className="border-b border-app-border font-bold bg-app-bg/25">
+                    <tr key={`h-${row.articleId}-${idx}`} className="border-b border-app-border font-bold bg-app-bg/25 print:bg-white">
                       <td colSpan={colSpanHeader} className="py-1.5 px-1 text-app-primary uppercase text-[11px] tracking-tight font-bold">
                         {row.articleName}
                       </td>
@@ -601,7 +601,7 @@ function PaginatedSinglePrintPage({
                   );
                 } else if (row.type === 'footer') {
                   return (
-                    <tr key={`f-${row.articleId}-${idx}`} className="border-b-2 border-app-border font-bold text-[11px] bg-app-bg/10">
+                    <tr key={`f-${row.articleId}-${idx}`} className="border-b-2 border-app-border font-bold text-[11px] bg-app-bg/10 print:bg-white">
                       <td colSpan={colSpanSummary} className="py-2 px-1 uppercase text-right tracking-tight font-bold text-app-text/75">
                         {row.articleName} -- Cantidad: {row.groupLength} | Total:
                       </td>
@@ -667,7 +667,7 @@ function SinglePrintPage({
   const hasWeight = activeProvider ? !!activeProvider.hasWeight : false;
 
   return (
-    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text p-8 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 min-h-[296mm] flex flex-col justify-between print-page print:border-none print:shadow-none print:p-0 print:my-0">
+    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text p-8 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 min-h-[296mm] flex flex-col justify-between print-page print:border-none print:shadow-none print:p-0 print:my-0 print:bg-white">
       <div>
         <div className="flex justify-between items-center mb-6">
           <div className="flex flex-col">
@@ -742,7 +742,7 @@ function SinglePrintPage({
                 return (
                   <React.Fragment key={articleId}>
                     {/* Article Name Header Row */}
-                    <tr className="border-b border-app-border font-bold bg-app-bg/25">
+                    <tr className="border-b border-app-border font-bold bg-app-bg/25 print:bg-white">
                       <td colSpan={colSpanHeader} className="py-1.5 px-1 text-app-primary uppercase text-[11px] tracking-tight">
                         {articleName}
                       </td>
@@ -764,7 +764,7 @@ function SinglePrintPage({
                     ))}
                     
                     {/* Article Group Summary Row */}
-                    <tr className="border-b-2 border-app-border font-bold text-[11px] bg-app-bg/10">
+                    <tr className="border-b-2 border-app-border font-bold text-[11px] bg-app-bg/10 print:bg-white">
                       <td colSpan={colSpanSummary} className="py-2 px-1 uppercase text-right tracking-tight font-bold text-app-text/75">
                         {articleName} -- Cantidad: {groupItems.length} | Total:
                       </td>
@@ -819,7 +819,7 @@ function CortePrintSheet({
   const showPartida = activeProvider ? activeProvider.hasPartida : true;
 
   return (
-    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text px-6 py-4 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 h-[296mm] max-h-[296mm] flex flex-col justify-between print-page print:border-none print:shadow-none print:p-0 print:my-0 box-border">
+    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text px-6 py-4 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 h-[296mm] max-h-[296mm] flex flex-col justify-between print-page print:border-none print:shadow-none print:p-0 print:my-0 print:bg-white box-border">
       
       {/* TOP HALF - EXACTLY 50% */}
       <div className="h-[50%] flex flex-col justify-between pb-4 border-b border-dashed border-app-border relative box-border overflow-hidden">
@@ -905,7 +905,7 @@ function CortePrintSheet({
                   );
                 })}
                 {packingList.type === 'corte' && packingList.notes && (
-                  <div className="mt-2 border border-app-border rounded p-1.5 bg-app-bg/20 text-[8px] leading-snug">
+                  <div className="mt-2 border border-app-border rounded p-1.5 bg-app-bg/20 print:bg-white text-[8px] leading-snug">
                     <span className="font-bold text-app-primary">NOTA:</span> {packingList.notes}
                   </div>
                 )}
@@ -914,7 +914,7 @@ function CortePrintSheet({
 
             {/* RIGHT COLUMN: CARGO Box (col-span-5) - Larger size & matches original style perfectly, but in black and white */}
             <div className="col-span-5 self-stretch flex flex-col">
-              <div className="border-2 border-app-primary rounded-xl p-3 text-app-text flex flex-col justify-between bg-app-bg/10 h-full min-h-[140px]">
+              <div className="border-2 border-app-primary rounded-xl p-3 text-app-text flex flex-col justify-between bg-app-bg/10 print:bg-white h-full min-h-[140px]">
                 <h3 className="text-sm font-display text-center tracking-widest uppercase mb-3 text-app-primary">
                   CARGO DE RECEPCIÓN
                 </h3>
@@ -1031,7 +1031,7 @@ function CortePrintSheet({
               );
             })}
             {packingList.type === 'corte' && packingList.notes && (
-              <div className="mt-2 border border-app-border rounded p-1.5 bg-app-bg/20 text-[8px] leading-snug">
+              <div className="mt-2 border border-app-border rounded p-1.5 bg-app-bg/20 print:bg-white text-[8px] leading-snug">
                 <span className="font-bold text-app-primary">NOTA:</span> {packingList.notes}
               </div>
             )}
