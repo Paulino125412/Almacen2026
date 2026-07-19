@@ -529,9 +529,6 @@ function PaginatedSinglePrintPage({
             <h1 className="text-2xl font-display text-app-primary">{title}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <span className="warehouse-tag">
-              GUÍA N°: {packingList.guideNumber || '___________'}
-            </span>
             <span className="text-md font-display text-app-secondary">GRUPO JUDITEX</span>
           </div>
         </div>
@@ -547,6 +544,11 @@ function PaginatedSinglePrintPage({
                 DESTINO: <span className="font-normal uppercase text-app-text/90">{packingList.dispatchAddress}</span>
               </p>
             )}
+            <p className="font-bold mt-1">
+              GUÍA N°: <span className="font-normal uppercase text-app-text/90">
+                {packingList.guideNumber || '___________'}
+              </span>
+            </p>
           </div>
           <div className="text-right space-y-1">
             <p className="font-bold">
@@ -828,9 +830,6 @@ function CortePrintSheet({
           <div className="flex justify-between items-center mb-1">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-display text-app-primary">PACKING LIST</h2>
-              <span className="warehouse-tag text-[9px] px-1.5 py-0.5 font-bold uppercase">
-                GUÍA N°: {packingList.guideNumber || '___________'}
-              </span>
             </div>
             <span className="text-xs font-display text-app-secondary">
               GRUPO JUDITEX
@@ -848,6 +847,11 @@ function CortePrintSheet({
                   DESTINO: <span className="font-normal uppercase text-app-text/90">{packingList.dispatchAddress}</span>
                 </p>
               )}
+              <p className="font-bold mt-0.5">
+                GUÍA N°: <span className="font-normal uppercase text-app-text/90">
+                  {packingList.guideNumber || '___________'}
+                </span>
+              </p>
               <p className="font-bold mt-0.5">
                 FECHA: <span className="font-normal font-mono text-app-text/80">{packingList.date}</span>
               </p>
@@ -943,11 +947,32 @@ function CortePrintSheet({
         </div>
 
         {/* Inline Summary for Top Half (Only Metrics to prevent Client/Seller repetition) */}
-        <div className="border-t border-app-border pt-1.5 mt-2 text-[10px] font-black uppercase">
-          <div className="flex justify-between items-center px-2">
-            <p className="font-display text-app-primary">TOTAL METROS: <span className="font-mono text-xs">{totalMeters.toFixed(2)} m</span></p>
-            <p className="font-display text-app-secondary">CANTIDAD DE ROLLOS: <span className="font-mono text-xs">{totalRolls}</span></p>
+        <div>
+          <div className="border-t border-app-border pt-1.5 mt-2 text-[10px] font-black uppercase">
+            <div className="flex justify-between items-center px-2">
+              <p className="font-display text-app-primary">TOTAL METROS: <span className="font-mono text-xs">{totalMeters.toFixed(2)} m</span></p>
+              <p className="font-display text-app-secondary">CANTIDAD DE ROLLOS: <span className="font-mono text-xs">{totalRolls}</span></p>
+            </div>
           </div>
+
+          {packingList.type === 'antiguo' && (
+            <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black print:bg-white">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
+                AVISO IMPORTANTE
+              </h3>
+              <div className="text-[8px] font-medium leading-normal uppercase">
+                <p className="mb-1">
+                  1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
+                </p>
+                <p className="mb-1">
+                  2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
+                </p>
+                <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
+                  DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -958,9 +983,6 @@ function CortePrintSheet({
           <div className="flex justify-between items-center mb-1">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-display text-app-primary">PACKING LIST</h2>
-              <span className="warehouse-tag text-[9px] px-1.5 py-0.5 font-bold uppercase">
-                GUÍA N°: {packingList.guideNumber || '___________'}
-              </span>
             </div>
             <span className="text-xs font-display text-app-secondary">
               GRUPO JUDITEX
@@ -978,6 +1000,11 @@ function CortePrintSheet({
                   DESTINO: <span className="font-normal uppercase text-app-text/90">{packingList.dispatchAddress}</span>
                 </p>
               )}
+              <p className="font-bold mt-0.5">
+                GUÍA N°: <span className="font-normal uppercase text-app-text/90">
+                  {packingList.guideNumber || '___________'}
+                </span>
+              </p>
               <p className="font-bold mt-0.5">
                 FECHA: <span className="font-normal font-mono text-app-text/80">{packingList.date}</span>
               </p>
@@ -1046,6 +1073,25 @@ function CortePrintSheet({
               <p className="font-display text-app-secondary">CANTIDAD DE ROLLOS: <span className="font-mono text-xs">{totalRolls}</span></p>
             </div>
           </div>
+
+          {packingList.type === 'antiguo' && (
+            <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black print:bg-white">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
+                AVISO IMPORTANTE
+              </h3>
+              <div className="text-[8px] font-medium leading-normal uppercase">
+                <p className="mb-1">
+                  1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
+                </p>
+                <p className="mb-1">
+                  2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
+                </p>
+                <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
+                  DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
