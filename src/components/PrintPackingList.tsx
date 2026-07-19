@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { PackingList, PackingListItem, Client, Seller, Provider, Article } from '../types';
 import { FileText, Printer, X, AlertTriangle, MessageCircle } from 'lucide-react';
 
-const ROWS_PER_PAGE = 28;
+const ROWS_PER_PAGE = 32;
 
 export interface PrintableRow {
   type: 'header' | 'roll' | 'footer';
@@ -522,7 +522,7 @@ function PaginatedSinglePrintPage({
     + (hasWeight ? 1 : 0);
 
   return (
-    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text p-8 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 print-page print:border-none print:shadow-none print:p-0 print:my-0 print:bg-white flex flex-col justify-between">
+    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text p-8 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 print-page print:border-none print:shadow-none print:p-0 print:my-0 print:bg-white print:min-h-[296mm] flex flex-col justify-between">
       <div>
         <div className="flex justify-between items-center mb-6">
           <div className="flex flex-col">
