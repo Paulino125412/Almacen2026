@@ -849,6 +849,20 @@ export default function PackingListForm({
       }
     }
 
+    // Validate duplicate rollIds
+    const seenRollIds: { [rollId: string]: string } = {};
+    for (const g of articleGroups) {
+      for (const r of g.rolls) {
+        if (r.rollId) {
+          if (seenRollIds[r.rollId]) {
+            setError(`El rollo '${r.rollNumber}' está siendo usado más de una vez en este despacho. Combina las cantidades en una sola fila o elige un rollo diferente.`);
+            return;
+          }
+          seenRollIds[r.rollId] = r.rollNumber;
+        }
+      }
+    }
+
     setLoading(true);
 
     try {

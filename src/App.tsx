@@ -332,6 +332,7 @@ export default function App() {
             sellers={sellers}
             providers={providers}
             articles={articles}
+            inventory={inventory}
             onRefresh={handleForceRefresh}
             onSelectPrint={(pl) => setSelectedPrintList(pl)}
             onEdit={(pl) => {

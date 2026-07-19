@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { PackingList, Client, Seller, Provider, Article } from '../types';
-import { db, deleteDoc } from '../firebase';
+import { PackingList, Client, Seller, Provider, Article, RollItem } from '../types';
+import { db, deleteDoc, updateDoc } from '../firebase';
 import { doc } from 'firebase/firestore';
 import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, Copy, FileSpreadsheet, MessageCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -11,6 +11,7 @@ interface PackingListHistoryProps {
   sellers: Seller[];
   providers: Provider[];
   articles: Article[];
+  inventory: RollItem[];
   onRefresh: () => Promise<void>;
   onSelectPrint: (pl: PackingList) => void;
   onEdit: (pl: PackingList) => void;
@@ -24,6 +25,7 @@ export default function PackingListHistory({
   sellers,
   providers,
   articles,
+  inventory,
   onRefresh,
   onSelectPrint,
   onEdit,
@@ -45,7 +47,7 @@ export default function PackingListHistory({
   const [showOnlyNoGuide, setShowOnlyNoGuide] = useState(false);
 
   // Custom modal states for secure deletion
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; plNo: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PackingList | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
@@ -345,10 +347,10 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
     });
   }, [sortedPackingLists, searchTerm, filterType, filterClientId, startDate, endDate, showOnlyNoGuide, clients, sellers]);
 
-  const initiateDelete = (id: string, plNo: string) => {
+  const initiateDelete = (pl: PackingList) => {
     setDeleteError(null);
     setDeleteSuccess(null);
-    setDeleteTarget({ id, plNo });
+    setDeleteTarget(pl);
   };
 
   const handleConfirmDelete = async () => {
@@ -357,13 +359,43 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
     setDeleteError(null);
 
     try {
+      // Revert the discounted inventory
+      const updatedRolls: { [rollId: string]: { currentMeters: number; initialMeters: number } } = {};
+
+      for (const item of deleteTarget.items) {
+        if (item.rollId) {
+          const rollId = item.rollId;
+          if (!updatedRolls[rollId]) {
+            const roll = inventory.find(r => r.id === rollId);
+            if (roll) {
+              updatedRolls[rollId] = {
+                currentMeters: roll.currentMeters,
+                initialMeters: roll.initialMeters
+              };
+            }
+          }
+          if (updatedRolls[rollId]) {
+            updatedRolls[rollId].currentMeters += item.meters;
+          }
+        }
+      }
+
+      for (const rollId of Object.keys(updatedRolls)) {
+        const { currentMeters, initialMeters } = updatedRolls[rollId];
+        const newStatus = currentMeters >= initialMeters ? 'available' : 'partially_sold';
+        await updateDoc(doc(db, 'inventory', rollId), {
+          currentMeters,
+          status: newStatus
+        });
+      }
+
       // Explicitly trigger the deletion from Firestore/LocalStorage wrappers
       await deleteDoc(doc(db, 'packinglists', deleteTarget.id));
       
       // Let the main layout trigger database sync
       await onRefresh();
       
-      setDeleteSuccess(`El packing list "${deleteTarget.plNo}" se eliminó de manera permanente y exitosa.`);
+      setDeleteSuccess(`El packing list "${deleteTarget.packingListNo}" se eliminó de manera permanente y exitosa.`);
       setTimeout(() => {
         setDeleteTarget(null);
         setDeleteSuccess(null);
@@ -663,7 +695,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
                             <FileSpreadsheet size={12} />
                           </button>
                           <button
-                            onClick={() => initiateDelete(pl.id, pl.packingListNo)}
+                            onClick={() => initiateDelete(pl)}
                             className="p-1 bg-app-surface hover:bg-app-bg text-app-text/45 hover:text-red-600 border border-app-border rounded transition cursor-pointer"
                             title="Eliminar registro permanente"
                           >
@@ -715,7 +747,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
               ) : (
                 <div className="space-y-4">
                   <p className="text-xs font-medium leading-relaxed text-app-text/80">
-                    ¿Está totalmente seguro de que desea eliminar permanentemente el packing list <strong className="text-app-text bg-app-bg px-1.5 py-0.5 rounded font-mono font-bold">{deleteTarget.plNo}</strong>?
+                    ¿Está totalmente seguro de que desea eliminar permanentemente el packing list <strong className="text-app-text bg-app-bg px-1.5 py-0.5 rounded font-mono font-bold">{deleteTarget.packingListNo}</strong>?
                   </p>
                   
                   <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded p-3 text-[10px] text-amber-900 dark:text-amber-300 font-medium leading-normal">

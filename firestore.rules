@@ -93,6 +93,8 @@ service cloud.firestore {
         && (!('lot' in incoming(request)) || (incoming(request).lot is string && incoming(request).lot.size() <= 50))
         && (!('partida' in incoming(request)) || (incoming(request).partida is string && incoming(request).partida.size() <= 50))
         && (!('tono' in incoming(request)) || (incoming(request).tono is string && incoming(request).tono.size() <= 50))
+        && (!('width' in incoming(request)) || (incoming(request).width is string && incoming(request).width.size() <= 50))
+        && (!('weight' in incoming(request)) || (incoming(request).weight is string && incoming(request).weight.size() <= 50))
         && incoming(request).appVersion is string
         && incoming(request).appVersion.size() > 0
         && incoming(request).appVersion.size() <= 20;
@@ -121,6 +123,8 @@ service cloud.firestore {
         && (incoming(request).totalRollsOrCuts is int || incoming(request).totalRollsOrCuts is float || incoming(request).totalRollsOrCuts is number)
         && incoming(request).totalRollsOrCuts >= 0
         && (!('notes' in incoming(request)) || (incoming(request).notes is string && incoming(request).notes.size() <= 500))
+        && (!('guideNumber' in incoming(request)) || (incoming(request).guideNumber is string && incoming(request).guideNumber.size() <= 100))
+        && (!('dispatchAddress' in incoming(request)) || (incoming(request).dispatchAddress is string && incoming(request).dispatchAddress.size() <= 500))
         && incoming(request).appVersion is string
         && incoming(request).appVersion.size() > 0
         && incoming(request).appVersion.size() <= 20;
@@ -143,6 +147,8 @@ service cloud.firestore {
         && (incoming(request).totalRollsOrCuts is int || incoming(request).totalRollsOrCuts is float || incoming(request).totalRollsOrCuts is number)
         && incoming(request).totalRollsOrCuts >= 0
         && (!('notes' in incoming(request)) || (incoming(request).notes is string && incoming(request).notes.size() <= 500))
+        && (!('guideNumber' in incoming(request)) || (incoming(request).guideNumber is string && incoming(request).guideNumber.size() <= 100))
+        && (!('dispatchAddress' in incoming(request)) || (incoming(request).dispatchAddress is string && incoming(request).dispatchAddress.size() <= 500))
         && incoming(request).appVersion is string
         && incoming(request).appVersion.size() > 0
         && incoming(request).appVersion.size() <= 20;
