@@ -2,6 +2,138 @@ import React, { useMemo } from 'react';
 import { PackingList, PackingListItem, Client, Seller, Provider, Article } from '../types';
 import { FileText, Printer, X, AlertTriangle, MessageCircle } from 'lucide-react';
 
+const ROWS_PER_PAGE = 35;
+
+export interface PrintableRow {
+  type: 'header' | 'roll' | 'footer';
+  articleId: string;
+  articleName?: string;
+  item?: PackingListItem;
+  index?: number;
+  articleTotalMeters?: number;
+  groupLength?: number;
+}
+
+export function getPaginatedBlocks(groupedItems: Record<string, PackingListItem[]>, getArticleName: (id: string) => string): PrintableRow[][] {
+  const flatItems: PrintableRow[] = [];
+  Object.keys(groupedItems).forEach(articleId => {
+    const groupItems = groupedItems[articleId];
+    const articleName = getArticleName(articleId);
+    const articleTotalMeters = groupItems.reduce((acc, item) => acc + Number(item.meters || 0), 0);
+    
+    flatItems.push({
+      type: 'header',
+      articleId,
+      articleName
+    });
+    
+    groupItems.forEach((item, idx) => {
+      flatItems.push({
+        type: 'roll',
+        articleId,
+        item,
+        index: idx
+      });
+    });
+    
+    flatItems.push({
+      type: 'footer',
+      articleId,
+      articleName,
+      articleTotalMeters,
+      groupLength: groupItems.length
+    });
+  });
+
+  const blocks: PrintableRow[][] = [];
+  let currentBlock: PrintableRow[] = [];
+  let currentRollsInBlock = 0;
+
+  for (let i = 0; i < flatItems.length; i++) {
+    const row = flatItems[i];
+    
+    if (row.type === 'roll') {
+      if (currentRollsInBlock >= ROWS_PER_PAGE) {
+        blocks.push(currentBlock);
+        currentBlock = [];
+        currentRollsInBlock = 0;
+      }
+      currentBlock.push(row);
+      currentRollsInBlock++;
+    } else if (row.type === 'header') {
+      if (currentRollsInBlock >= ROWS_PER_PAGE) {
+        blocks.push(currentBlock);
+        currentBlock = [];
+        currentRollsInBlock = 0;
+      }
+      currentBlock.push(row);
+    } else if (row.type === 'footer') {
+      currentBlock.push(row);
+    }
+  }
+  if (currentBlock.length > 0) {
+    blocks.push(currentBlock);
+  }
+
+  // If there's only 1 block but it has exactly ROWS_PER_PAGE rolls,
+  // the Totales and Aviso Importante will overflow to a new page with 0 rolls.
+  // To avoid this, we can force-create a second block and move the last roll there.
+  if (blocks.length === 1) {
+    const rollCount = blocks[0].filter(r => r.type === 'roll').length;
+    if (rollCount >= ROWS_PER_PAGE) {
+      blocks.push([]);
+    }
+  }
+
+  // Ensure the last block has at least one roll row
+  if (blocks.length > 1) {
+    const lastBlock = blocks[blocks.length - 1];
+    const hasRoll = lastBlock.some(r => r.type === 'roll');
+    if (!hasRoll) {
+      const prevBlock = blocks[blocks.length - 2];
+      // Find the last roll in prevBlock
+      let lastRollIdx = -1;
+      for (let j = prevBlock.length - 1; j >= 0; j--) {
+        if (prevBlock[j].type === 'roll') {
+          lastRollIdx = j;
+          break;
+        }
+      }
+      if (lastRollIdx !== -1) {
+        const rollToMove = prevBlock[lastRollIdx];
+        prevBlock.splice(lastRollIdx, 1);
+        lastBlock.unshift(rollToMove);
+        
+        // Move its header too if there are no more rolls of that article in prevBlock
+        const articleIdOfMovedRoll = rollToMove.articleId;
+        const remainingRollsOfArticle = prevBlock.filter(r => r.type === 'roll' && r.articleId === articleIdOfMovedRoll).length;
+        if (remainingRollsOfArticle === 0) {
+          const headerIdx = prevBlock.findIndex(r => r.type === 'header' && r.articleId === articleIdOfMovedRoll);
+          if (headerIdx !== -1) {
+            const headerToMove = prevBlock[headerIdx];
+            prevBlock.splice(headerIdx, 1);
+            lastBlock.unshift(headerToMove);
+          }
+          // Move the footer too
+          const footerIdx = prevBlock.findIndex(r => r.type === 'footer' && r.articleId === articleIdOfMovedRoll);
+          if (footerIdx !== -1) {
+            const footerToMove = prevBlock[footerIdx];
+            prevBlock.splice(footerIdx, 1);
+            const rollIdxInLast = lastBlock.indexOf(rollToMove);
+            if (rollIdxInLast !== -1) {
+              lastBlock.splice(rollIdxInLast + 1, 0, footerToMove);
+            } else {
+              lastBlock.push(footerToMove);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return blocks;
+}
+
 interface PrintPackingListProps {
   packingList: PackingList;
   clients: Client[];
@@ -83,6 +215,10 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
     return groups;
   }, [packingList.items]);
 
+  const paginatedBlocks = useMemo(() => {
+    return getPaginatedBlocks(groupedItems, getArticleName);
+  }, [groupedItems, articles]);
+
   return (
     <div id="print-section" className="fixed inset-0 bg-app-bg/75 backdrop-blur-xs z-50 overflow-y-auto p-4 md:p-6 flex justify-center items-start print-overlay-container">
       {/* CSS rules for pure A4 printing of two clean pages */}
@@ -130,17 +266,11 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
           .print-page {
             page-break-after: always !important;
             break-after: page !important;
-            min-height: 297mm !important;
-            height: 297mm !important;
-            max-height: 297mm !important;
             border: none !important;
             box-shadow: none !important;
             padding: 12mm 15mm !important;
             margin: 0 !important;
             width: 100% !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
             box-sizing: border-box !important;
             background-color: white !important;
             color: black !important;
@@ -152,6 +282,14 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
           .print-page:last-child {
             page-break-after: avoid !important;
             break-after: avoid !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .aviso-importante {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
           .ticket-perforated::before,
           .ticket-perforated::after {
@@ -253,72 +391,242 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
             />
           ) : (
             <>
-              {/* PAGE 1: ORIGINAL (With exact requested Aviso Importante text) */}
-              <SinglePrintPage
-                title="PACKING LIST"
-                packingList={packingList}
-                client={client}
-                seller={seller}
-                groupedItems={groupedItems}
-                getArticleName={getArticleName}
-                totalRolls={totalRolls}
-                totalMeters={totalMeters}
-                providers={providers}
-                bottomContent={
-                  <div className="mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
-                      AVISO IMPORTANTE
-                    </h3>
-                    <div className="text-[8px] font-medium leading-normal uppercase">
-                      <p className="mb-1">
-                        1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
-                      </p>
-                      <p className="mb-1">
-                        2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
-                      </p>
-                      <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
-                        DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
-                      </p>
+              {/* COPY 1: ORIGINAL CLIENT COPY */}
+              {paginatedBlocks.map((block, pageIdx) => (
+                <PaginatedSinglePrintPage
+                  key={`cli-${pageIdx}`}
+                  title="PACKING LIST"
+                  packingList={packingList}
+                  client={client}
+                  seller={seller}
+                  block={block}
+                  getArticleName={getArticleName}
+                  totalRolls={totalRolls}
+                  totalMeters={totalMeters}
+                  providers={providers}
+                  isLastPage={pageIdx === paginatedBlocks.length - 1}
+                  bottomContent={
+                    <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black">
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
+                        AVISO IMPORTANTE
+                      </h3>
+                      <div className="text-[8px] font-medium leading-normal uppercase">
+                        <p className="mb-1">
+                          1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
+                        </p>
+                        <p className="mb-1">
+                          2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
+                        </p>
+                        <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
+                          DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                }
-              />
+                  }
+                />
+              ))}
 
-              {/* PAGE 2: COPIA CARGO (Temporarily replaced with Aviso Importante) */}
-              <SinglePrintPage
-                title="PACKING LIST"
-                packingList={packingList}
-                client={client}
-                seller={seller}
-                groupedItems={groupedItems}
-                getArticleName={getArticleName}
-                totalRolls={totalRolls}
-                totalMeters={totalMeters}
-                providers={providers}
-                bottomContent={
-                  <div className="mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
-                      AVISO IMPORTANTE
-                    </h3>
-                    <div className="text-[8px] font-medium leading-normal uppercase">
-                      <p className="mb-1">
-                        1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
-                      </p>
-                      <p className="mb-1">
-                        2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
-                      </p>
-                      <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
-                        DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
-                      </p>
+              {/* COPY 2: WAREHOUSE COPY / COPIA CARGO */}
+              {paginatedBlocks.map((block, pageIdx) => (
+                <PaginatedSinglePrintPage
+                  key={`war-${pageIdx}`}
+                  title="PACKING LIST"
+                  packingList={packingList}
+                  client={client}
+                  seller={seller}
+                  block={block}
+                  getArticleName={getArticleName}
+                  totalRolls={totalRolls}
+                  totalMeters={totalMeters}
+                  providers={providers}
+                  isLastPage={pageIdx === paginatedBlocks.length - 1}
+                  bottomContent={
+                    <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black">
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
+                        AVISO IMPORTANTE
+                      </h3>
+                      <div className="text-[8px] font-medium leading-normal uppercase">
+                        <p className="mb-1">
+                          1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
+                        </p>
+                        <p className="mb-1">
+                          2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
+                        </p>
+                        <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
+                          DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                }
-              />
+                  }
+                />
+              ))}
             </>
           )}
 
         </div>
       </div>
+    </div>
+  );
+}
+
+interface PaginatedSinglePrintPageProps {
+  key?: string;
+  title: string;
+  packingList: PackingList;
+  client: Client | undefined;
+  seller: Seller | undefined;
+  block: PrintableRow[];
+  getArticleName: (id: string) => string;
+  totalRolls: number;
+  totalMeters: number;
+  providers: Provider[];
+  isLastPage: boolean;
+  bottomContent?: React.ReactNode;
+}
+
+function PaginatedSinglePrintPage({
+  title,
+  packingList,
+  client,
+  seller,
+  block,
+  getArticleName,
+  totalRolls,
+  totalMeters,
+  providers,
+  isLastPage,
+  bottomContent
+}: PaginatedSinglePrintPageProps) {
+  const firstItemProviderId = packingList.items[0]?.providerId;
+  const activeProvider = providers.find(p => p.id === firstItemProviderId) || null;
+
+  const showLot = activeProvider ? activeProvider.hasLot : true;
+  const showPartida = activeProvider ? activeProvider.hasPartida : true;
+  const hasRollNo = activeProvider ? activeProvider.hasRollNo : false;
+  const hasTono = activeProvider ? !!activeProvider.hasTono : false;
+  const hasWidth = activeProvider ? !!activeProvider.hasWidth : false;
+  const hasWeight = activeProvider ? !!activeProvider.hasWeight : false;
+
+  const colSpanHeader = 2 
+    + (showLot ? 1 : 0) 
+    + (showPartida ? 1 : 0) 
+    + (hasTono ? 1 : 0)
+    + (hasWidth ? 1 : 0)
+    + (hasWeight ? 1 : 0);
+
+  const colSpanSummary = 1 
+    + (showLot ? 1 : 0) 
+    + (showPartida ? 1 : 0) 
+    + (hasTono ? 1 : 0)
+    + (hasWidth ? 1 : 0)
+    + (hasWeight ? 1 : 0);
+
+  return (
+    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text p-8 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 print-page print:border-none print:shadow-none print:p-0 print:my-0 flex flex-col justify-between">
+      <div>
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-display text-app-primary">{title}</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="warehouse-tag">
+              GUÍA N°: {packingList.guideNumber || '___________'}
+            </span>
+            <span className="text-md font-display text-app-secondary">GRUPO JUDITEX</span>
+          </div>
+        </div>
+
+        {/* Client and Sales Representative at the same height */}
+        <div className="flex justify-between items-start text-xs border-b border-app-border pb-3 mb-6">
+          <div className="space-y-1">
+            <p className="font-bold">
+              CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente Eliminado'}</span>
+            </p>
+            {packingList.dispatchAddress && (
+              <p className="font-bold mt-1">
+                DESTINO: <span className="font-normal uppercase text-app-text/90">{packingList.dispatchAddress}</span>
+              </p>
+            )}
+          </div>
+          <div className="text-right space-y-1">
+            <p className="font-bold">
+              VENDEDOR: <span className="font-normal uppercase text-app-text/90">{seller?.name || 'Vendedor Autorizado'}</span>
+            </p>
+            <p className="font-bold">
+              FECHA: <span className="font-normal font-mono text-app-text/80">{packingList.date}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Elegant Grouped Articles Table */}
+        <div className="mb-6">
+          <table className="w-full text-left border-collapse border-b border-app-border text-xs">
+            <thead>
+              <tr className="border-b-2 border-app-border text-[10px] text-app-text uppercase font-bold tracking-wider">
+                <th className="py-1.5 px-1 w-2/5">
+                  {hasRollNo ? 'Nº ROLLO' : 'ITEM'}
+                </th>
+                {showLot && <th className="py-1.5 px-1 text-center w-24">LOTE</th>}
+                {showPartida && <th className="py-1.5 px-1 text-center w-28">PARTIDA</th>}
+                {hasTono && <th className="py-1.5 px-1 text-center w-20">TONO</th>}
+                {hasWidth && <th className="py-1.5 px-1 text-center w-20">ANCHO</th>}
+                {hasWeight && <th className="py-1.5 px-1 text-center w-20">PESO</th>}
+                <th className="py-1.5 px-1 text-right w-32">METRAJE</th>
+              </tr>
+            </thead>
+            <tbody>
+              {block.map((row, idx) => {
+                if (row.type === 'header') {
+                  return (
+                    <tr key={`h-${row.articleId}-${idx}`} className="border-b border-app-border font-bold bg-app-bg/25">
+                      <td colSpan={colSpanHeader} className="py-1.5 px-1 text-app-primary uppercase text-[11px] tracking-tight font-bold">
+                        {row.articleName}
+                      </td>
+                    </tr>
+                  );
+                } else if (row.type === 'roll') {
+                  const item = row.item!;
+                  return (
+                    <tr key={`r-${item.id || idx}`} className="border-b border-app-border/40 hover:bg-app-bg/10">
+                      <td className="py-1 px-1 font-mono text-[10.5px] pl-4 font-bold">
+                        {hasRollNo ? (item.rollNumber || '-') : ((row.index ?? 0) + 1)}
+                      </td>
+                      {showLot && <td className="py-1 px-1 text-center font-mono text-[11px]">{item.lot || '-'}</td>}
+                      {showPartida && <td className="py-1 px-1 text-center font-mono text-[11px]">{item.partida || '-'}</td>}
+                      {hasTono && <td className="py-1 px-1 text-center font-mono text-[11px] font-bold text-app-primary uppercase">{item.tono || '-'}</td>}
+                      {hasWidth && <td className="py-1 px-1 text-center font-mono text-[11px]">{item.width ? `${item.width} m` : '-'}</td>}
+                      {hasWeight && <td className="py-1 px-1 text-center font-mono text-[11px]">{item.weight ? `${item.weight} kg` : '-'}</td>}
+                      <td className="py-1 px-1 text-right font-mono font-bold text-[11px]">{Number(item.meters).toFixed(2)} m</td>
+                    </tr>
+                  );
+                } else if (row.type === 'footer') {
+                  return (
+                    <tr key={`f-${row.articleId}-${idx}`} className="border-b-2 border-app-border font-bold text-[11px] bg-app-bg/10">
+                      <td colSpan={colSpanSummary} className="py-2 px-1 uppercase text-right tracking-tight font-bold text-app-text/75">
+                        {row.articleName} -- Cantidad: {row.groupLength} | Total:
+                      </td>
+                      <td className="py-2 px-1 text-right font-mono text-app-primary font-black">
+                        {(row.articleTotalMeters ?? 0).toFixed(2)} m
+                      </td>
+                    </tr>
+                  );
+                }
+                return null;
+              })}
+            </tbody>
+          </table>
+
+          {/* Grand Totals Section */}
+          {isLastPage && (
+            <div className="flex flex-col items-end justify-end mt-3 text-xs font-bold space-y-1">
+              <p className="uppercase tracking-tight">TOTAL ROLLOS: <span className="font-mono font-black text-sm text-app-secondary">{totalRolls}</span></p>
+              <p className="uppercase tracking-tight font-display text-app-primary">TOTAL METROS: <span className="font-mono font-black text-md">{totalMeters.toFixed(2)} m</span></p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isLastPage && bottomContent}
     </div>
   );
 }
