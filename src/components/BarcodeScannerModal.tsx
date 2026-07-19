@@ -233,24 +233,26 @@ export default function BarcodeScannerModal({
   }, [isOpen, selectedCameraId]);
 
   const startScanning = async (cameraId: string) => {
-    stopScanning(); // Stop any active instances
+    await stopScanning(); // Stop any active instances
     setErrorMsg('');
     setIsScanning(false);
 
-    // Give DOM 100ms to render the container div before starting
-    setTimeout(async () => {
-      try {
-        const html5Qrcode = new Html5Qrcode(scannerId, {
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.QR_CODE,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39
-          ],
-          verbose: false
-        });
-        html5QrcodeRef.current = html5Qrcode;
+    // Give hardware and DOM a short safety timeout to let the camera resource settle
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
-        await html5Qrcode.start(
+    try {
+      const html5Qrcode = new Html5Qrcode(scannerId, {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39
+        ],
+        verbose: false
+      });
+      html5QrcodeRef.current = html5Qrcode;
+
+      const runStart = async () => {
+        return html5Qrcode.start(
           cameraId,
           {
             fps: 15,
@@ -273,12 +275,30 @@ export default function BarcodeScannerModal({
             // Failure is silent for standard frame-by-frame scanner polling
           }
         );
-        setIsScanning(true);
-      } catch (err: any) {
-        console.error('Failed to start camera scan:', err);
-        setErrorMsg(`Error de inicio de cámara: ${err.message || err}`);
+      };
+
+      try {
+        await runStart();
+      } catch (startErr: any) {
+        const errStr = String(startErr);
+        if (
+          errStr.includes('NotReadableError') ||
+          (startErr && startErr.name === 'NotReadableError') ||
+          errStr.toLowerCase().includes('could not start video source')
+        ) {
+          console.warn('Camera start failed with NotReadableError. Retrying in 500ms...', startErr);
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          await runStart();
+        } else {
+          throw startErr;
+        }
       }
-    }, 150);
+
+      setIsScanning(true);
+    } catch (err: any) {
+      console.error('Failed to start camera scan:', err);
+      setErrorMsg(`Error de inicio de cámara: ${err.message || err}`);
+    }
   };
 
   const stopScanning = async () => {
