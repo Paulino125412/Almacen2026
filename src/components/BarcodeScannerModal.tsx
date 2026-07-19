@@ -189,8 +189,7 @@ export default function BarcodeScannerModal({
     }
   };
 
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleManualSubmit = () => {
     if (!manualCode.trim()) return;
     processScanResult(manualCode);
     setManualCode('');
@@ -455,21 +454,27 @@ export default function BarcodeScannerModal({
                 </div>
 
                 {/* Manual text backup entry */}
-                <form onSubmit={handleManualSubmit} className="flex gap-2">
+                <div className="flex gap-2">
                   <input
                     type="text"
                     placeholder="¿No lee? Escribe código manual aquí..."
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleManualSubmit();
+                      }
+                    }}
                     className="flex-1 px-3 py-1.5 border border-app-border rounded-lg text-xs font-mono bg-app-surface text-app-text focus:ring-1 focus:ring-app-primary placeholder:font-sans placeholder:text-[10px]"
                   />
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={handleManualSubmit}
                     className="px-3 py-1.5 bg-app-surface hover:bg-app-bg border border-app-border text-app-text font-black uppercase tracking-wider text-[10px] rounded-lg transition"
                   >
                     Cargar
                   </button>
-                </form>
+                </div>
 
                 {/* Helpful Tip description */}
                 <div className="bg-app-primary/5 text-app-primary rounded-lg p-2 flex items-start gap-2 text-[10px] leading-relaxed text-left">
