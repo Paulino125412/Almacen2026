@@ -32,6 +32,11 @@ export default function CatalogManager({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [similarityWarning, setSimilarityWarning] = useState<{
+    isOpen: boolean;
+    existingName: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Handle external navigation/filtering from global search
   useEffect(() => {
@@ -136,14 +141,55 @@ export default function CatalogManager({
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const checkSimilarity = (newName: string, existingItems: { name: string }[]): string | null => {
+    const s1 = newName.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!s1) return null;
+
+    for (const item of existingItems) {
+      const s2 = (item.name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      if (!s2) continue;
+
+      // 1. Uno contiene al otro
+      if (s1.includes(s2) || s2.includes(s1)) {
+        return item.name;
+      }
+
+      // 2. Levenshtein similarity >= 0.85
+      const len1 = s1.length;
+      const len2 = s2.length;
+      const matrix = Array.from({ length: len1 + 1 }, () => Array(len2 + 1).fill(0));
+
+      for (let i = 0; i <= len1; i++) matrix[i][0] = i;
+      for (let j = 0; j <= len2; j++) matrix[0][j] = j;
+
+      for (let i = 1; i <= len1; i++) {
+        for (let j = 1; j <= len2; j++) {
+          const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j - 1] + cost
+          );
+        }
+      }
+
+      const distance = matrix[len1][len2];
+      const maxLength = Math.max(len1, len2);
+      const similarity = maxLength > 0 ? (maxLength - distance) / maxLength : 0;
+
+      if (similarity >= 0.85) {
+        return item.name;
+      }
+    }
+
+    return null;
+  };
+
+  const executeSave = async () => {
     setLoading(true);
     setError(null);
-
     try {
       if (activeTab === 'providers') {
-        if (!provName.trim()) throw new Error('El nombre del proveedor es obligatorio');
         const providerData = {
           name: provName,
           hasLot: provHasLot,
@@ -165,8 +211,6 @@ export default function CatalogManager({
       } 
       
       else if (activeTab === 'articles') {
-        if (!artName.trim()) throw new Error('El nombre del artículo es obligatorio');
-        if (!artProvId) throw new Error('Debe asociar un proveedor');
         const articleData = {
           name: artName,
           description: artDesc,
@@ -185,8 +229,6 @@ export default function CatalogManager({
       } 
       
       else if (activeTab === 'clients') {
-        if (!cliName.trim()) throw new Error('El nombre del cliente es obligatorio');
-        if (!cliDni.trim()) throw new Error('El DNI/RUC es obligatorio');
         const clientData = {
           name: cliName,
           dni: cliDni,
@@ -206,7 +248,6 @@ export default function CatalogManager({
       } 
       
       else if (activeTab === 'sellers') {
-        if (!selName.trim()) throw new Error('El nombre del vendedor es obligatorio');
         const sellerData = {
           name: selName,
           email: selEmail,
@@ -229,6 +270,65 @@ export default function CatalogManager({
       console.error(err);
       setError(err.message || 'Error al guardar el registro');
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (activeTab === 'providers') {
+        if (!provName.trim()) throw new Error('El nombre del proveedor es obligatorio');
+      } else if (activeTab === 'articles') {
+        if (!artName.trim()) throw new Error('El nombre del artículo es obligatorio');
+        if (!artProvId) throw new Error('Debe asociar un proveedor');
+      } else if (activeTab === 'clients') {
+        if (!cliName.trim()) throw new Error('El nombre del cliente es obligatorio');
+        if (!cliDni.trim()) throw new Error('El DNI/RUC es obligatorio');
+      } else if (activeTab === 'sellers') {
+        if (!selName.trim()) throw new Error('El nombre del vendedor es obligatorio');
+      }
+
+      if (!editingId) {
+        let inputName = '';
+        let existingList: { name: string }[] = [];
+
+        if (activeTab === 'providers') {
+          inputName = provName;
+          existingList = providers;
+        } else if (activeTab === 'articles') {
+          inputName = artName;
+          existingList = articles;
+        } else if (activeTab === 'clients') {
+          inputName = cliName;
+          existingList = clients;
+        } else if (activeTab === 'sellers') {
+          inputName = selName;
+          existingList = sellers;
+        }
+
+        const similarName = checkSimilarity(inputName, existingList);
+        if (similarName) {
+          setSimilarityWarning({
+            isOpen: true,
+            existingName: similarName,
+            onConfirm: () => {
+              setSimilarityWarning(null);
+              executeSave();
+            }
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
+      await executeSave();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Error al guardar el registro');
       setLoading(false);
     }
   };
@@ -936,6 +1036,51 @@ export default function CatalogManager({
           </div>
         </div>
       </div>
+
+      {/* Similarity Warning Modal */}
+      {similarityWarning && similarityWarning.isOpen && (
+        <div translate="no" className="fixed inset-0 bg-app-bg/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in no-print notranslate">
+          <div className="bg-app-surface border border-app-border rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-slide-up text-app-text">
+            <div className="border-b border-app-border p-5 flex items-start gap-3.5 bg-yellow-500/10">
+              <div className="p-2.5 rounded-lg shrink-0 border bg-yellow-500/20 text-yellow-500 border-yellow-500/20">
+                <Users size={20} className="stroke-[2]" />
+              </div>
+              <div>
+                <h4 className="text-xs font-extrabold text-app-text uppercase tracking-wider">
+                  Registro Similar Detectado
+                </h4>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-yellow-500">
+                  ADVERTENCIA DE DUPLICIDAD
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <p className="text-xs leading-relaxed text-app-text/90">
+                Ya existe un registro similar: <strong className="font-extrabold text-app-primary">"{similarityWarning.existingName}"</strong>.
+              </p>
+              <p className="text-xs leading-relaxed text-app-text/90">
+                ¿Deseas continuar de todas formas o prefieres usar el existente?
+              </p>
+            </div>
+            
+            <div className="bg-app-bg/60 px-6 py-4 border-t border-app-border flex justify-end gap-3">
+              <button
+                onClick={() => setSimilarityWarning(null)}
+                className="px-4 py-2 bg-app-surface border border-app-border hover:bg-app-bg text-app-text rounded text-xs font-bold uppercase tracking-wider transition cursor-pointer"
+              >
+                Cancelar y Usar Existente
+              </button>
+              <button
+                onClick={similarityWarning.onConfirm}
+                className="px-5 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs font-bold uppercase tracking-wider transition cursor-pointer shadow-sm"
+              >
+                Continuar de todas formas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

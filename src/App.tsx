@@ -29,7 +29,8 @@ import {
   RefreshCw,
   Sun,
   Moon,
-  Search
+  Search,
+  Download
 } from 'lucide-react';
 
 // Components
@@ -372,10 +373,12 @@ export default function App() {
             currentOperator={currentOperator}
             editingPackingList={editingPackingList}
             isDuplicate={isDuplicate}
-            onCancelEdit={() => {
+            onCancelEdit={(goToHistory = true) => {
               setEditingPackingList(null);
               setIsDuplicate(false);
-              setActiveTab('history');
+              if (goToHistory) {
+                setActiveTab('history');
+              }
             }}
           />
         );
@@ -429,6 +432,38 @@ export default function App() {
       default:
         return null;
     }
+  };
+
+  const getFormattedDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}_${hours}${minutes}`;
+  };
+
+  const handleDownloadBackup = () => {
+    const backupData = {
+      backupDate: new Date().toISOString(),
+      providers,
+      articles,
+      clients,
+      sellers,
+      inventory,
+      packingLists
+    };
+    
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `respaldo_texflow_${getFormattedDateString()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -640,6 +675,14 @@ export default function App() {
           <span className="flex items-center gap-2 flex-wrap">
             <span className="h-1.5 w-1.5 rounded-full bg-app-secondary animate-pulse"></span>
             WMS Mode: {isLocal ? "Local Demo Offline" : "Firestore Production DB"} • LiveSync • TLS Secure
+            <button
+              onClick={handleDownloadBackup}
+              className="ml-3 px-2 py-0.5 bg-app-primary hover:bg-app-primary/95 text-white font-semibold rounded text-[8px] uppercase tracking-wider flex items-center gap-1 cursor-pointer transition duration-150 shadow-xs border border-app-primary"
+              title="Descargar un respaldo completo de la base de datos en formato JSON"
+            >
+              <Download size={8} />
+              Descargar Respaldo Completo
+            </button>
             {isLocal && hasPendingSync && (
               <button
                 onClick={handleSyncLocalData}

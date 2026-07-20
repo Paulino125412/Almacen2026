@@ -105,6 +105,11 @@ export default function InventoryManager({
     });
   }, [inventory, searchTerm, filterProviderId, filterArticleId, filterStatus, startDate, endDate, articles, providers]);
 
+  // Exhausted/Sold Rolls memo
+  const soldRolls = useMemo(() => {
+    return inventory.filter(item => item.currentMeters === 0);
+  }, [inventory]);
+
   // Export Inventory list to Excel (CSV)
   const handleExportExcel = () => {
     if (filteredInventory.length === 0) {
@@ -282,11 +287,12 @@ export default function InventoryManager({
     if (!roll) return;
 
     if (adjustedMeters < 0) {
-      alert('Los metros actuales no pueden ser menores a 0');
+      setError('Los metros actuales no pueden ser menores a 0');
       return;
     }
 
     setLoading(true);
+    setError(null);
     try {
       const difference = adjustedMeters - roll.currentMeters;
       const status = adjustedMeters === 0 ? 'sold' : 'available';
@@ -300,9 +306,9 @@ export default function InventoryManager({
       await onRefresh();
       setAdjustingId(null);
       setAdjustNotes('');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Error al ajustar el inventario');
+      setError(err?.message || 'Error al ajustar el inventario');
     } finally {
       setLoading(false);
     }
@@ -313,6 +319,13 @@ export default function InventoryManager({
   const [isDeletingRoll, setIsDeletingRoll] = useState(false);
   const [deleteRollError, setDeleteRollError] = useState<string | null>(null);
   const [deleteRollSuccess, setDeleteRollSuccess] = useState<string | null>(null);
+
+  // Bulk Deletion States
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
+  const [bulkDeleteSuccess, setBulkDeleteSuccess] = useState<string | null>(null);
+  const [bulkDeleteResults, setBulkDeleteResults] = useState<{ successCount: number; failureCount: number } | null>(null);
 
   const initiateDeleteRoll = (roll: RollItem) => {
     setDeleteRollError(null);
@@ -342,6 +355,45 @@ export default function InventoryManager({
     }
   };
 
+  const handleConfirmBulkDelete = async () => {
+    setIsBulkDeleting(true);
+    setBulkDeleteError(null);
+    setBulkDeleteSuccess(null);
+    setBulkDeleteResults(null);
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    try {
+      for (const roll of soldRolls) {
+        try {
+          await deleteDoc(doc(db, 'inventory', roll.id));
+          successCount++;
+        } catch (err) {
+          console.error(`Error deleting roll ${roll.rollNumber}:`, err);
+          failureCount++;
+        }
+      }
+
+      await onRefresh();
+
+      if (failureCount === 0) {
+        setBulkDeleteSuccess(`Se eliminaron correctamente los ${successCount} rollos agotados de manera permanente.`);
+        setTimeout(() => {
+          setIsBulkDeleteOpen(false);
+          setBulkDeleteSuccess(null);
+        }, 3000);
+      } else {
+        setBulkDeleteResults({ successCount, failureCount });
+      }
+    } catch (err: any) {
+      console.error("Bulk delete processing failed:", err);
+      setBulkDeleteError(err?.message || 'Error al procesar la eliminación masiva de rollos.');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top action header */}
@@ -367,6 +419,18 @@ export default function InventoryManager({
         </div>
       </div>
 
+      {error && (
+        <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-red-800 dark:text-red-400 rounded text-xs font-semibold flex justify-between items-center animate-fade-in no-print">
+          <span>{error}</span>
+          <button 
+            onClick={() => setError(null)} 
+            className="text-red-800 dark:text-red-400 hover:text-red-950 dark:hover:text-red-200 font-extrabold px-2 cursor-pointer"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Conditionally rendered register/add form */}
       {showAddForm && (
         <div className="ticket-perforated p-5 shadow-sm">
@@ -374,12 +438,6 @@ export default function InventoryManager({
             <Plus size={14} className="text-app-text/45" />
             Ingreso de nuevo rollo textil al almacén
           </h3>
-          
-          {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-red-800 dark:text-red-400 rounded mb-4 text-xs font-medium">
-              {error}
-            </div>
-          )}
 
           {/* Modes selector tabs */}
           <div className="flex border-b border-app-border mb-5">
@@ -786,14 +844,34 @@ export default function InventoryManager({
           <p className="text-xs text-app-text/60 font-medium">
             Encontrados: <span className="font-semibold text-app-text">{filteredInventory.length}</span> rollos textiles en almacén.
           </p>
-          <button
-            onClick={handleExportExcel}
-            className="px-4 py-1.5 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded text-[10px] font-bold flex items-center gap-1.5 transition uppercase tracking-wider cursor-pointer"
-            id="btn-export-excel"
-          >
-            <FileSpreadsheet size={12} className="text-app-text/50" />
-            Exportar Inventario
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportExcel}
+              className="px-4 py-1.5 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded text-[10px] font-bold flex items-center gap-1.5 transition uppercase tracking-wider cursor-pointer"
+              id="btn-export-excel"
+            >
+              <FileSpreadsheet size={12} className="text-app-text/50" />
+              Exportar Inventario
+            </button>
+            <button
+              onClick={() => {
+                setBulkDeleteError(null);
+                setBulkDeleteSuccess(null);
+                setBulkDeleteResults(null);
+                setIsBulkDeleteOpen(true);
+              }}
+              disabled={soldRolls.length === 0}
+              className={`px-4 py-1.5 border rounded text-[10px] font-bold flex items-center gap-1.5 transition uppercase tracking-wider cursor-pointer ${
+                soldRolls.length > 0
+                  ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/40 hover:bg-red-100 dark:hover:bg-red-950/40'
+                  : 'bg-app-surface/50 border-app-border text-app-text/30 cursor-not-allowed opacity-50'
+              }`}
+              id="btn-delete-sold-rolls"
+            >
+              <Trash2 size={12} />
+              Eliminar {soldRolls.length} Rollos Agotados
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1015,6 +1093,125 @@ export default function InventoryManager({
                     <>
                       <Trash2 size={12} />
                       Confirmar Borrado
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* Custom Bulk Roll Deletion Confirmation Modal */}
+      {isBulkDeleteOpen && (
+        <div className="fixed inset-0 bg-app-bg/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in no-print">
+          <div className="bg-app-surface border border-app-border rounded w-full max-w-md shadow-xl overflow-hidden animate-slide-up text-app-text">
+            
+            {/* Header */}
+            <div className="bg-red-50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-950/40 p-5 flex items-center gap-3">
+              <div className="bg-red-500 text-white p-2 rounded">
+                <ShieldAlert size={18} />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider">ELIMINAR ROLLOS AGOTADOS</h4>
+                <p className="text-[9px] font-bold text-red-600 dark:text-red-400 uppercase tracking-widest mt-0.5">ELIMINACIÓN MASIVA</p>
+              </div>
+              <button 
+                onClick={() => !isBulkDeleting && setIsBulkDeleteOpen(false)} 
+                className="ml-auto text-app-text/45 hover:text-app-text cursor-pointer"
+                disabled={isBulkDeleting}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              {bulkDeleteSuccess ? (
+                <div className="text-center py-3">
+                  <div className="inline-flex items-center justify-center bg-app-bg text-app-secondary p-3 rounded mb-3">
+                    <CheckCircle size={24} />
+                  </div>
+                  <p className="text-xs font-bold text-app-text">{bulkDeleteSuccess}</p>
+                </div>
+              ) : bulkDeleteResults ? (
+                <div className="space-y-4">
+                  <div className="bg-yellow-50 dark:bg-yellow-950/15 border border-yellow-200 dark:border-yellow-900/30 rounded p-3 text-[11px] text-yellow-800 dark:text-yellow-400 font-medium">
+                    ⚠️ Se completó el proceso de eliminación masiva:
+                    <ul className="list-disc pl-4 mt-1.5 space-y-0.5 font-semibold">
+                      <li>Eliminados con éxito: <strong>{bulkDeleteResults.successCount}</strong></li>
+                      <li>No se pudieron eliminar: <strong>{bulkDeleteResults.failureCount}</strong></li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsBulkDeleteOpen(false);
+                      setBulkDeleteResults(null);
+                    }}
+                    className="w-full py-2 bg-app-surface border border-app-border hover:bg-app-bg text-app-text rounded text-xs font-bold transition cursor-pointer uppercase tracking-wider"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-xs font-medium leading-relaxed text-app-text/80">
+                    ¿Está totalmente seguro de que desea eliminar permanentemente los <strong className="text-app-text bg-app-bg px-1.5 py-0.5 rounded font-bold">{soldRolls.length}</strong> rollos agotados (0 metros) del inventario?
+                  </p>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-app-text/50 uppercase tracking-wider block">Lista de rollos a eliminar ({soldRolls.length}):</label>
+                    <div className="max-h-40 overflow-y-auto border border-app-border bg-app-bg/50 rounded p-2 text-[11px] divide-y divide-app-border/40 font-mono">
+                      {soldRolls.map(item => {
+                        const article = articles.find(a => a.id === item.articleId);
+                        return (
+                          <div key={item.id} className="py-1 flex justify-between items-center">
+                            <span className="font-bold text-app-primary">{item.rollNumber}</span>
+                            <span className="text-app-text/60 max-w-[200px] truncate">{article?.name || 'Artículo desconocido'}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-red-50/50 dark:bg-red-950/10 border border-red-200/80 dark:border-red-900/30 rounded p-3 text-[10px] text-red-900 dark:text-red-300 font-medium leading-normal">
+                    ⚠️ <strong>ATENCIÓN ALMACÉN:</strong> Esta acción es irreversible. Los rollos eliminados ya no podrán ser detectados como 'previamente usados' si se vuelve a escanear o escribir su número en el futuro.
+                  </div>
+
+                  {bulkDeleteError && (
+                    <div className="bg-red-50 dark:bg-red-950/10 border border-red-200 dark:border-red-900/40 p-3 text-[11px] text-red-800 dark:text-red-400 font-semibold font-mono leading-tight">
+                      ERROR: {bulkDeleteError}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Buttons */}
+            {!bulkDeleteSuccess && !bulkDeleteResults && (
+              <div className="bg-app-bg px-6 py-4 border-t border-app-border flex justify-end gap-3 shrink-0">
+                <button
+                  onClick={() => setIsBulkDeleteOpen(false)}
+                  disabled={isBulkDeleting}
+                  className="px-3 py-1.5 hover:bg-app-border text-app-text/75 hover:text-app-text border border-app-border rounded text-xs font-bold transition disabled:opacity-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmBulkDelete}
+                  disabled={isBulkDeleting}
+                  className="px-3 py-1.5 bg-red-650 hover:bg-red-750 text-white rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer uppercase tracking-wider"
+                >
+                  {isBulkDeleting ? (
+                    <>
+                      <RefreshCw size={12} className="animate-spin" />
+                      Eliminando...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={12} />
+                      Eliminar Definitivamente
                     </>
                   )}
                 </button>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Client, Seller, Provider, Article, RollItem, PackingList, PackingListItem } from '../types';
 import { db, addDoc, updateDoc } from '../firebase';
 import { collection, doc } from 'firebase/firestore';
-import { Plus, Trash2, Calendar, User, ShoppingBag, CheckCircle2, ChevronRight, Hash, Ruler } from 'lucide-react';
+import { Plus, Trash2, Calendar, User, ShoppingBag, CheckCircle2, ChevronRight, Hash, Ruler, X } from 'lucide-react';
 import SearchableCombobox from './SearchableCombobox';
 import { FormRollEntry, FormArticleGroup } from './packing-list-form/types';
 import { resolveColumnsForText } from './packing-list-form/ExcelPasteParser';
@@ -21,7 +21,7 @@ interface PackingListFormProps {
   currentOperator: string;
   editingPackingList?: PackingList | null;
   isDuplicate?: boolean;
-  onCancelEdit?: () => void;
+  onCancelEdit?: (goToHistory?: boolean) => void;
 }
 
 // Helper to calculate consecutive, non-repeating Packing List numbers
@@ -91,6 +91,58 @@ export default function PackingListForm({
   const [hasCheckedDraft, setHasCheckedDraft] = useState(false);
   const [showRecoveryPrompt, setShowRecoveryPrompt] = useState(false);
   const [draftData, setDraftData] = useState<any>(null);
+  const [isSuccessfullySaved, setIsSuccessfullySaved] = useState(false);
+
+  // Reset confirmation state
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+
+  // Form content presence check
+  const hasContent = useMemo(() => {
+    return !!(
+      clientId || 
+      sellerId ||
+      notes.trim() || 
+      formProviderId || 
+      guideNumber.trim() || 
+      dispatchAddress.trim() || 
+      articleGroups.length > 1 || 
+      (articleGroups[0] && (articleGroups[0].articleId || articleGroups[0].rolls.length > 0))
+    );
+  }, [clientId, sellerId, notes, formProviderId, guideNumber, dispatchAddress, articleGroups]);
+
+  // Reusable function to completely reset form state
+  const resetFormState = () => {
+    setClientId('');
+    setSellerId('');
+    setNotes('');
+    setFormProviderId('');
+    setGuideNumber('');
+    setDispatchAddress('');
+    setDocDate(new Date().toISOString().split('T')[0]);
+    setPackingType('nuevo');
+    setPackingListNo(getNextPackingListNo(packingLists));
+    setArticleGroups([
+      {
+        id: `group-${Date.now()}-${Math.random()}`,
+        providerId: '',
+        articleId: '',
+        lot: '',
+        partida: '',
+        tono: '',
+        source: 'custom',
+        rolls: []
+      }
+    ]);
+  };
+
+  const handleConfirmReset = () => {
+    resetFormState();
+    localStorage.removeItem("texflow_draft_packinglist");
+    if (editingPackingList || isDuplicate) {
+      onCancelEdit?.(false);
+    }
+    setIsResetConfirmOpen(false);
+  };
 
   // Check for saved draft on mount (only if not editing or duplicating)
   useEffect(() => {
@@ -137,7 +189,6 @@ export default function PackingListForm({
   // Auto-save form draft to localStorage when states change
   useEffect(() => {
     if (hasCheckedDraft && !editingPackingList && !isDuplicate) {
-      const hasContent = clientId || notes.trim() || formProviderId || guideNumber.trim() || dispatchAddress.trim() || (articleGroups.length > 1 || (articleGroups[0] && (articleGroups[0].articleId || articleGroups[0].rolls.length > 0)));
       if (hasContent) {
         const draftObj = {
           packingType,
@@ -155,7 +206,43 @@ export default function PackingListForm({
         localStorage.removeItem("texflow_draft_packinglist");
       }
     }
-  }, [hasCheckedDraft, packingType, clientId, sellerId, docDate, notes, formProviderId, articleGroups, editingPackingList, isDuplicate, guideNumber, dispatchAddress]);
+  }, [hasCheckedDraft, hasContent, packingType, clientId, sellerId, docDate, notes, formProviderId, articleGroups, editingPackingList, isDuplicate, guideNumber, dispatchAddress]);
+
+  // Reset success save status when editing/duplicating changes or form fields are modified
+  useEffect(() => {
+    setIsSuccessfullySaved(false);
+  }, [editingPackingList, isDuplicate]);
+
+  // Native browser beforeunload warning for unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasUnsavedContent =
+        clientId !== '' ||
+        sellerId !== '' ||
+        notes.trim() !== '' ||
+        guideNumber.trim() !== '' ||
+        dispatchAddress.trim() !== '' ||
+        articleGroups.some(g => 
+          g.articleId || 
+          g.providerId || 
+          g.lot || 
+          g.partida || 
+          g.tono || 
+          (g.rolls && g.rolls.length > 0)
+        );
+
+      if (hasUnsavedContent && !isSuccessfullySaved) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [clientId, sellerId, notes, guideNumber, dispatchAddress, articleGroups, isSuccessfullySaved]);
 
   // Propagate formProviderId to all article groups and reset incompatible ones
   useEffect(() => {
@@ -891,6 +978,13 @@ export default function PackingListForm({
 
       const totalMetersValue = finalItems.reduce((acc, item) => acc + Number(item.meters || 0), 0);
       const totalRollsValue = finalItems.length;
+
+      if (finalItems.length === 0 || totalMetersValue <= 0) {
+        setError("Debe agregar al menos un rollo o corte con metraje antes de guardar el despacho.");
+        setLoading(false);
+        return;
+      }
+
       const clientObj = clients.find(c => c.id === clientId);
 
       if (editingPackingList && !isDuplicate) {
@@ -957,6 +1051,7 @@ export default function PackingListForm({
         }
 
         await onRefresh();
+        setIsSuccessfullySaved(true);
         setSuccess(`¡Packing List ${updatedPL.packingListNo} modificado correctamente!`);
         localStorage.removeItem("texflow_draft_packinglist");
         
@@ -1011,6 +1106,7 @@ export default function PackingListForm({
         }
 
         await onRefresh();
+        setIsSuccessfullySaved(true);
         setSuccess(`¡Packing List ${newPL.packingListNo} registrado correctamente!`);
         localStorage.removeItem("texflow_draft_packinglist");
         
@@ -1019,21 +1115,7 @@ export default function PackingListForm({
       }
 
       // Resetear estado del formulario
-      setClientId('');
-      setNotes('');
-      setFormProviderId('');
-      setArticleGroups([
-        {
-          id: `group-${Date.now()}-${Math.random()}`,
-          providerId: '',
-          articleId: '',
-          lot: '',
-          partida: '',
-          tono: '',
-          source: 'custom',
-          rolls: []
-        }
-      ]);
+      resetFormState();
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Error al guardar el Packing List');
@@ -1377,6 +1459,21 @@ export default function PackingListForm({
             </button>
           )}
           <button
+            type="button"
+            disabled={!hasContent && !editingPackingList && !isDuplicate}
+            onClick={() => setIsResetConfirmOpen(true)}
+            className={`px-4 py-2.5 border rounded-lg text-sm font-bold transition flex items-center gap-1.5 ${
+              (hasContent || editingPackingList || isDuplicate)
+                ? 'bg-red-50 dark:bg-red-950/10 hover:bg-red-100 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/30 cursor-pointer'
+                : 'bg-app-surface/50 border-app-border text-app-text/30 cursor-not-allowed opacity-50'
+            }`}
+            id="btn-clear-packinglist"
+            title="Borrar todos los datos ingresados en el formulario"
+          >
+            <Trash2 size={14} />
+            Borrar Todo
+          </button>
+          <button
             type="submit"
             disabled={loading}
             className={`px-6 py-3 text-white font-bold rounded-lg text-sm transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5 ${
@@ -1395,6 +1492,64 @@ export default function PackingListForm({
           </button>
         </div>
       </form>
+
+      {/* Custom Form Reset Confirmation Modal */}
+      {isResetConfirmOpen && (
+        <div className="fixed inset-0 bg-app-bg/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in no-print">
+          <div className="bg-app-surface border border-app-border rounded w-full max-w-md shadow-xl overflow-hidden animate-slide-up text-app-text">
+            
+            {/* Header */}
+            <div className="bg-red-50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-950/40 p-5 flex items-center gap-3">
+              <div className="bg-red-500 text-white p-2 rounded">
+                <Trash2 size={18} />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider">BORRAR TODO / CANCELAR</h4>
+                <p className="text-[9px] font-bold text-red-600 dark:text-red-400 uppercase tracking-widest mt-0.5">LIMPIEZA DE FORMULARIO</p>
+              </div>
+              <button 
+                onClick={() => setIsResetConfirmOpen(false)} 
+                className="ml-auto text-app-text/45 hover:text-app-text cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="space-y-4">
+                <p className="text-xs font-medium leading-relaxed text-app-text/80">
+                  ¿Seguro que deseas borrar todos los datos ingresados en este formulario? Esta acción no se puede deshacer.
+                </p>
+                
+                {(editingPackingList || isDuplicate) && (
+                  <div className="bg-amber-50 dark:bg-amber-950/15 border border-amber-200 dark:border-amber-900/30 rounded p-3 text-[10px] text-amber-850 dark:text-amber-400 font-medium">
+                    ⚠️ Se cancelará el modo de <strong>{isDuplicate ? 'duplicación' : 'edición'}</strong> actual y volverás al formulario vacío de nuevo ingreso.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="bg-app-bg px-6 py-4 border-t border-app-border flex justify-end gap-3 shrink-0">
+              <button
+                onClick={() => setIsResetConfirmOpen(false)}
+                className="px-3 py-1.5 hover:bg-app-border text-app-text/75 hover:text-app-text border border-app-border rounded text-xs font-bold transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmReset}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer uppercase tracking-wider"
+              >
+                <Trash2 size={12} />
+                Sí, Borrar Todo
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
