@@ -535,7 +535,7 @@ export default function CatalogManager({
                     required
                     value={artName}
                     onChange={e => setArtName(e.target.value)}
-                    placeholder="Ej. Algodón Jersey 30/1"
+                    placeholder="Ej. Sarga Stretch Denim Azul Forte"
                     className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
                     id="input-art-name"
                   />
@@ -561,7 +561,7 @@ export default function CatalogManager({
                     type="text"
                     value={artDesc}
                     onChange={e => setArtDesc(e.target.value)}
-                    placeholder="Ej. Gramaje 180g, ancho 1.60m"
+                    placeholder="Ej. Gramaje 14oz, ancho 1.75m"
                     className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
                   />
                 </div>
