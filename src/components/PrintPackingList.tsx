@@ -160,6 +160,85 @@ export default function PrintPackingList({
   const totalMeters = packingList.items.reduce((acc, item) => acc + Number(item.meters || 0), 0);
   const totalRolls = packingList.items.length;
 
+  // Active View Tab: 'packing_list' or 'guia_remision'
+  const [activeView, setActiveView] = React.useState<'packing_list' | 'guia_remision'>('packing_list');
+
+  // Guía de Remisión Electronic Fields (with highly-intelligent defaults)
+  const [guiaSeries, setGuiaSeries] = React.useState('T001');
+  const [guiaNumber, setGuiaNumber] = React.useState(() => {
+    const digits = packingList.packingListNo.replace(/\D/g, '');
+    return digits ? digits.slice(-8).padStart(8, '0') : '00000829';
+  });
+  
+  const [fechaTraslado, setFechaTraslado] = React.useState(() => {
+    if (packingList.date) {
+      // If date is in format DD/MM/YYYY, convert to YYYY-MM-DD for date input
+      const parts = packingList.date.split('/');
+      if (parts.length === 3) {
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
+    return new Date().toISOString().split('T')[0];
+  });
+
+  const [puntoPartida, setPuntoPartida] = React.useState('JR. IGNACIO COSSIO NRO. 1363 URB. AVENIDA MÉXICO LA VICTORIA LIMA LIMA');
+  const [puntoLlegada, setPuntoLlegada] = React.useState(() => {
+    return packingList.dispatchAddress || client?.address || '';
+  });
+
+  const [clientRuc, setClientRuc] = React.useState(() => {
+    return client?.dni || '20512174389';
+  });
+
+  const [clientName, setClientName] = React.useState(() => {
+    return client?.name || 'CORPORACION SEVEHER E.I.R.L.';
+  });
+
+  const [motivo, setMotivo] = React.useState('VENTA');
+  const [pesoBruto, setPesoBruto] = React.useState(() => {
+    // Estimating standard weight per meter for denim (e.g. 0.45 kg/m)
+    return (totalMeters * 0.45).toFixed(3);
+  });
+
+  const [unidadMedida, setUnidadMedida] = React.useState('KGM');
+  const [driverName, setDriverName] = React.useState('SAYAS BERROCAL VICTORIO');
+  const [driverLicense, setDriverLicense] = React.useState('R41670178');
+  const [vehiclePlate, setVehiclePlate] = React.useState('APK771');
+  const [observaciones, setObservaciones] = React.useState(() => {
+    return packingList.notes || '';
+  });
+
+  const [despachadorName, setDespachadorName] = React.useState(() => {
+    return packingList.signedBy?.name || 'Paul Almacén';
+  });
+
+  const [despachadorDni, setDespachadorDni] = React.useState(() => {
+    return packingList.signedBy?.dni || '42536471';
+  });
+
+  // Calculate dynamic emission date/time
+  const fechaHoraEmision = React.useMemo(() => {
+    const today = new Date();
+    const pad = (num: number) => String(num).padStart(2, '0');
+    const d = today.getDate();
+    const m = today.getMonth() + 1;
+    const y = today.getFullYear();
+    const h = today.getHours();
+    const min = today.getMinutes();
+    const s = today.getSeconds();
+    return `${pad(d)}/${pad(m)}/${y} ${pad(h)}:${pad(min)}:${pad(s)}`;
+  }, []);
+
+  // Format traslado date for display
+  const formattedFechaTraslado = React.useMemo(() => {
+    if (!fechaTraslado) return '';
+    const parts = fechaTraslado.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return fechaTraslado;
+  }, [fechaTraslado]);
+
   React.useEffect(() => {
     const originalTitle = document.title;
     const handleBeforePrint = () => {
@@ -178,7 +257,9 @@ export default function PrintPackingList({
 
   const handlePrint = () => {
     const originalTitle = document.title;
-    document.title = " ";
+    document.title = activeView === 'guia_remision'
+      ? `Guia_Remision_${guiaSeries}_${guiaNumber}`
+      : `Packing_List_${packingList.packingListNo}`;
     window.focus();
     window.print();
     setTimeout(() => {
@@ -187,14 +268,30 @@ export default function PrintPackingList({
   };
 
   const handleShareWhatsApp = () => {
+    if (activeView === 'guia_remision') {
+      const text = `Guía de Remisión Electrónica N° ${guiaSeries}-${guiaNumber}
+Destinatario: ${clientName}
+RUC: ${clientRuc}
+Fecha Traslado: ${formattedFechaTraslado}
+Punto de Llegada: ${puntoLlegada}
+Peso Bruto: ${pesoBruto} ${unidadMedida}
+Transportista: ${driverName}
+Placa: ${vehiclePlate}
+Total Metros: ${totalMeters.toFixed(2)} m`;
+
+      const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
+      return;
+    }
+
     const guideLine = packingList.guideNumber && packingList.guideNumber.trim() !== ''
       ? `Packing List Guía N°: ${packingList.guideNumber.trim()}`
       : 'Packing List';
 
-    const clientName = client?.name || 'Cliente Eliminado';
+    const clientNameOriginal = client?.name || 'Cliente Eliminado';
 
     const text = `${guideLine}
-Cliente: ${clientName}
+Cliente: ${clientNameOriginal}
 Fecha: ${packingList.date}
 Total Rollos: ${packingList.totalRollsOrCuts}
 Total Metros: ${totalMeters.toFixed(2)} m`;
@@ -308,19 +405,21 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
         }
       `}</style>
 
-      <div translate="no" className="notranslate bg-app-surface border border-app-border rounded-lg shadow-2xl w-full max-w-4xl overflow-hidden print-modal-reset">
+      <div translate="no" className={`notranslate bg-app-surface border border-app-border rounded-lg shadow-2xl w-full ${activeView === 'guia_remision' ? 'max-w-7xl' : 'max-w-4xl'} overflow-hidden print-modal-reset transition-all duration-300`}>
         {/* Header Modal Actions */}
         <div className="bg-app-surface px-6 py-4 border-b border-app-border flex flex-wrap justify-between items-center gap-4 no-print">
           <div className="flex items-center gap-3">
             <FileText className="text-app-primary" size={22} />
             <div>
               <h2 className="text-md font-bold text-app-text">
-                Vista de Impresión: {packingList.packingListNo}
+                {activeView === 'guia_remision' ? 'Guía de Remisión Electrónica' : 'Vista de Impresión Packing List'}: {packingList.packingListNo}
               </h2>
               <p className="text-[11px] text-app-text/60">
-                {(packingList.type === 'corte' || packingList.type === 'antiguo')
-                  ? 'Imprime un documento en una sola hoja A4 con dos mitades (Original con Cargo en parte superior y Copia para el receptor en parte inferior).'
-                  : 'Imprime un documento de 2 hojas: Hoja 1 y Hoja 2, ambas con el Aviso Importante.'}
+                {activeView === 'guia_remision' 
+                  ? 'Guía de Remisión de formato oficial SUNAT para control de transporte terrestre y despacho de telas.'
+                  : (packingList.type === 'corte' || packingList.type === 'antiguo')
+                    ? 'Imprime un documento en una sola hoja A4 con dos mitades (Original con Cargo en parte superior y Copia para el receptor en parte inferior).'
+                    : 'Imprime un documento de 2 hojas: Hoja 1 y Hoja 2, ambas con el Aviso Importante.'}
               </p>
             </div>
           </div>
@@ -339,7 +438,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
               id="btn-print-action"
             >
               <Printer size={13} />
-              Imprimir Packing List
+              {activeView === 'guia_remision' ? 'Imprimir Guía de Remisión' : 'Imprimir Packing List'}
             </button>
             <button
               onClick={onClose}
@@ -352,114 +451,352 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
           </div>
         </div>
 
+        {/* Tab Selection Row (no-print) */}
+        <div className="flex border-b border-app-border bg-app-bg/55 px-6 py-2.5 gap-3 no-print shrink-0">
+          <button
+            onClick={() => setActiveView('packing_list')}
+            className={`px-4 py-1.5 rounded-md text-xs font-bold transition cursor-pointer uppercase tracking-wider ${
+              activeView === 'packing_list'
+                ? 'bg-app-primary text-white shadow-xs'
+                : 'text-app-text/60 hover:text-app-text hover:bg-app-primary/10 border border-transparent'
+            }`}
+            id="tab-view-packinglist"
+          >
+            F-01: Packing List (Almacén)
+          </button>
+          <button
+            onClick={() => setActiveView('guia_remision')}
+            className={`px-4 py-1.5 rounded-md text-xs font-bold transition cursor-pointer uppercase tracking-wider flex items-center gap-2 ${
+              activeView === 'guia_remision'
+                ? 'bg-app-primary text-white shadow-xs'
+                : 'text-app-text/60 hover:text-app-text hover:bg-app-primary/10 border border-transparent'
+            }`}
+            id="tab-view-guia-remision"
+          >
+            F-02: Guía de Remisión / Despacho
+            <span className="text-[8px] bg-red-500 text-white font-black px-1.5 py-0.5 rounded uppercase animate-pulse leading-none">NUEVO</span>
+          </button>
+        </div>
+
         {/* Scrollable Container for On-Screen Visualizing */}
         <div className="p-4 overflow-y-auto max-h-[80vh] bg-app-bg/90 space-y-4 print-scroll-container">
-          {window.self !== window.top && (
-            <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-lg p-4 text-xs text-red-800 dark:text-red-300 flex flex-col gap-2 no-print shadow-xs animate-pulse">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="text-red-600 dark:text-red-400 shrink-0" size={18} />
-                <p className="font-bold text-sm">
-                  ¡Atención! Bloqueo de impresión detectado (Vista Previa de AI Studio)
-                </p>
+          {activeView === 'guia_remision' ? (
+            /* Guia de Remisión dual-column panel layout */
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              
+              {/* Sidebar Config Panel (no-print) */}
+              <div className="lg:col-span-4 bg-app-surface border border-app-border rounded-xl p-5 space-y-4 no-print text-app-text shadow-sm">
+                <div className="border-b border-app-border/40 pb-2 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-app-primary animate-pulse"></div>
+                  <div>
+                    <h3 className="text-xs font-extrabold text-app-primary uppercase tracking-wider">Datos de Traslado</h3>
+                    <p className="text-[10px] text-app-text/60 mt-0.5">Configure la guía antes de generar el impreso.</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Serie</label>
+                    <input 
+                      type="text" 
+                      value={guiaSeries} 
+                      onChange={e => setGuiaSeries(e.target.value.toUpperCase())} 
+                      className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-bold uppercase" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Correlativo</label>
+                    <input 
+                      type="text" 
+                      value={guiaNumber} 
+                      onChange={e => setGuiaNumber(e.target.value)} 
+                      className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-mono font-bold" 
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Fecha de Traslado</label>
+                  <input 
+                    type="date" 
+                    value={fechaTraslado} 
+                    onChange={e => setFechaTraslado(e.target.value)} 
+                    className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-bold" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Punto de Partida</label>
+                  <textarea 
+                    value={puntoPartida} 
+                    onChange={e => setPuntoPartida(e.target.value)} 
+                    rows={2} 
+                    className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden resize-none leading-normal" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Punto de Llegada (Despacho)</label>
+                  <textarea 
+                    value={puntoLlegada} 
+                    onChange={e => setPuntoLlegada(e.target.value)} 
+                    rows={2} 
+                    className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden resize-none leading-normal font-bold" 
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">RUC Destinatario</label>
+                    <input 
+                      type="text" 
+                      value={clientRuc} 
+                      onChange={e => setClientRuc(e.target.value)} 
+                      className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-mono" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Peso Bruto (KGM)</label>
+                    <input 
+                      type="text" 
+                      value={pesoBruto} 
+                      onChange={e => setPesoBruto(e.target.value)} 
+                      className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-mono font-bold" 
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Destinatario (Cliente)</label>
+                  <input 
+                    type="text" 
+                    value={clientName} 
+                    onChange={e => setClientName(e.target.value)} 
+                    className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-bold" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Motivo Traslado</label>
+                  <select 
+                    value={motivo} 
+                    onChange={e => setMotivo(e.target.value)} 
+                    className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-bold"
+                  >
+                    <option value="VENTA">VENTA</option>
+                    <option value="TRASLADO ENTRE ESTABLECIMIENTOS">TRASLADO ENTRE ESTABLECIMIENTOS</option>
+                    <option value="COMPRA">COMPRA</option>
+                    <option value="CONSIGNACION">CONSIGNACIÓN</option>
+                    <option value="DEVOLUCION">DEVOLUCIÓN</option>
+                    <option value="OTROS">OTROS</option>
+                  </select>
+                </div>
+
+                <div className="border-t border-app-border/40 pt-3 space-y-3">
+                  <h4 className="text-[10px] font-black text-app-primary uppercase tracking-wider">Chofer & Vehículo</h4>
+                  <div>
+                    <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Nombre Transportista</label>
+                    <input 
+                      type="text" 
+                      value={driverName} 
+                      onChange={e => setDriverName(e.target.value)} 
+                      className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-semibold" 
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Licencia Conducir</label>
+                      <input 
+                        type="text" 
+                        value={driverLicense} 
+                        onChange={e => setDriverLicense(e.target.value)} 
+                        className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-mono" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Placa Vehicular</label>
+                      <input 
+                        type="text" 
+                        value={vehiclePlate} 
+                        onChange={e => setVehiclePlate(e.target.value.toUpperCase())} 
+                        className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-mono font-bold uppercase" 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-app-border/40 pt-3 space-y-3">
+                  <h4 className="text-[10px] font-black text-app-primary uppercase tracking-wider">Firmas Autorizadas</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Despachador</label>
+                      <input 
+                        type="text" 
+                        value={despachadorName} 
+                        onChange={e => setDespachadorName(e.target.value)} 
+                        className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-medium" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">DNI Despachador</label>
+                      <input 
+                        type="text" 
+                        value={despachadorDni} 
+                        onChange={e => setDespachadorDni(e.target.value)} 
+                        className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden font-mono" 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-app-text/50 uppercase tracking-wider mb-1">Observaciones / Notas</label>
+                  <textarea 
+                    value={observaciones} 
+                    onChange={e => setObservaciones(e.target.value)} 
+                    rows={2} 
+                    className="w-full px-2.5 py-1.5 text-xs bg-app-bg border border-app-border rounded focus:border-app-primary focus:outline-hidden resize-none leading-normal font-mono" 
+                  />
+                </div>
               </div>
-              <p className="leading-relaxed">
-                Los navegadores modernos <strong>bloquean</strong> las ventanas de impresión (<code className="font-mono bg-red-100 dark:bg-red-950/40 px-1 rounded text-red-950 dark:text-red-300">window.print()</code>) cuando la aplicación se ejecuta dentro de un marco o <strong>iFrame</strong> por razones de seguridad.
-              </p>
-              <p className="font-medium">
-                👉 <strong>Solución:</strong> Haga clic en el botón con el icono de la flecha inclinada <strong>"Open in new tab"</strong> (Abrir en pestaña nueva) ubicado en la esquina superior derecha del panel de vista previa de AI Studio, o acceda directamente usando los enlaces de desarrollo compartidos. Una vez abierto en su propia pestaña, el botón de impresión funcionará a la perfección.
-              </p>
+
+              {/* Printable Canvas Section */}
+              <div className="lg:col-span-8 w-full flex justify-center">
+                <GuiaRemisionPrintSheet
+                  guiaSeries={guiaSeries}
+                  guiaNumber={guiaNumber}
+                  fechaHoraEmision={fechaHoraEmision}
+                  formattedFechaTraslado={formattedFechaTraslado}
+                  puntoPartida={puntoPartida}
+                  puntoLlegada={puntoLlegada}
+                  clientRuc={clientRuc}
+                  clientName={clientName}
+                  motivo={motivo}
+                  pesoBruto={pesoBruto}
+                  unidadMedida={unidadMedida}
+                  driverName={driverName}
+                  driverLicense={driverLicense}
+                  vehiclePlate={vehiclePlate}
+                  observaciones={observaciones}
+                  despachadorName={despachadorName}
+                  despachadorDni={despachadorDni}
+                  packingList={packingList}
+                  getArticleName={getArticleName}
+                  groupedItems={groupedItems}
+                />
+              </div>
+
             </div>
-          )}
-
-          <div className="bg-app-primary/5 border border-app-primary/20 rounded-lg p-3 text-xs text-app-primary flex items-center gap-2 no-print">
-            <AlertTriangle className="text-app-primary shrink-0" size={16} />
-            <p>
-              <strong>Sugerencia de Impresión:</strong> Para un acabado perfecto, asegúrese de activar <strong>"Gráficos de fondo"</strong> en la configuración de su navegador.
-            </p>
-          </div>
-
-          {(packingList.type === 'corte' || packingList.type === 'antiguo') ? (
-            <CortePrintSheet
-              packingList={packingList}
-              client={client}
-              seller={seller}
-              groupedItems={groupedItems}
-              getArticleName={getArticleName}
-              totalRolls={totalRolls}
-              totalMeters={totalMeters}
-              providers={providers}
-            />
           ) : (
             <>
-              {/* COPY 1: ORIGINAL CLIENT COPY */}
-              {paginatedBlocks.map((block, pageIdx) => (
-                <PaginatedSinglePrintPage
-                  key={`cli-${pageIdx}`}
-                  title="PACKING LIST"
-                  packingList={packingList}
-                  client={client}
-                  seller={seller}
-                  block={block}
-                  getArticleName={getArticleName}
-                  totalRolls={totalRolls}
-                  totalMeters={totalMeters}
-                  providers={providers}
-                  isLastPage={pageIdx === paginatedBlocks.length - 1}
-                  bottomContent={
-                    <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black print:bg-white">
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
-                        AVISO IMPORTANTE
-                      </h3>
-                      <div className="text-[8px] font-medium leading-normal uppercase">
-                        <p className="mb-1">
-                          1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
-                        </p>
-                        <p className="mb-1">
-                          2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
-                        </p>
-                        <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
-                          DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
-                        </p>
-                      </div>
-                    </div>
-                  }
-                />
-              ))}
+              {window.self !== window.top && (
+                <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-lg p-4 text-xs text-red-800 dark:text-red-300 flex flex-col gap-2 no-print shadow-xs animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="text-red-600 dark:text-red-400 shrink-0" size={18} />
+                    <p className="font-bold text-sm">
+                      ¡Atención! Bloqueo de impresión detectado (Vista Previa de AI Studio)
+                    </p>
+                  </div>
+                  <p className="leading-relaxed">
+                    Los navegadores modernos <strong>bloquean</strong> las ventanas de impresión (<code className="font-mono bg-red-100 dark:bg-red-950/40 px-1 rounded text-red-950 dark:text-red-300">window.print()</code>) cuando la aplicación se ejecuta dentro de un marco o <strong>iFrame</strong> por razones de seguridad.
+                  </p>
+                  <p className="font-medium">
+                    👉 <strong>Solución:</strong> Haga clic en el botón con el icono de la flecha inclinada <strong>"Open in new tab"</strong> (Abrir en pestaña nueva) ubicado en la esquina superior derecha del panel de vista previa de AI Studio, o acceda directamente usando los enlaces de desarrollo compartidos. Una vez abierto en su propia pestaña, el botón de impresión funcionará a la perfección.
+                  </p>
+                </div>
+              )}
 
-              {/* COPY 2: WAREHOUSE COPY / COPIA CARGO */}
-              {paginatedBlocks.map((block, pageIdx) => (
-                <PaginatedSinglePrintPage
-                  key={`war-${pageIdx}`}
-                  title="PACKING LIST"
+              <div className="bg-app-primary/5 border border-app-primary/20 rounded-lg p-3 text-xs text-app-primary flex items-center gap-2 no-print">
+                <AlertTriangle className="text-app-primary shrink-0" size={16} />
+                <p>
+                  <strong>Sugerencia de Impresión:</strong> Para un acabado perfecto, asegúrese de activar <strong>"Gráficos de fondo"</strong> en la configuración de su navegador.
+                </p>
+              </div>
+
+              {(packingList.type === 'corte' || packingList.type === 'antiguo') ? (
+                <CortePrintSheet
                   packingList={packingList}
                   client={client}
                   seller={seller}
-                  block={block}
+                  groupedItems={groupedItems}
                   getArticleName={getArticleName}
                   totalRolls={totalRolls}
                   totalMeters={totalMeters}
                   providers={providers}
-                  isLastPage={pageIdx === paginatedBlocks.length - 1}
-                  bottomContent={
-                    <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black print:bg-white">
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
-                        AVISO IMPORTANTE
-                      </h3>
-                      <div className="text-[8px] font-medium leading-normal uppercase">
-                        <p className="mb-1">
-                          1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
-                        </p>
-                        <p className="mb-1">
-                          2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
-                        </p>
-                        <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
-                          DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
-                        </p>
-                      </div>
-                    </div>
-                  }
                 />
-              ))}
+              ) : (
+                <>
+                  {/* COPY 1: ORIGINAL CLIENT COPY */}
+                  {paginatedBlocks.map((block, pageIdx) => (
+                    <PaginatedSinglePrintPage
+                      key={`cli-${pageIdx}`}
+                      title="PACKING LIST"
+                      packingList={packingList}
+                      client={client}
+                      seller={seller}
+                      block={block}
+                      getArticleName={getArticleName}
+                      totalRolls={totalRolls}
+                      totalMeters={totalMeters}
+                      providers={providers}
+                      isLastPage={pageIdx === paginatedBlocks.length - 1}
+                      bottomContent={
+                        <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black print:bg-white">
+                          <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
+                            AVISO IMPORTANTE
+                          </h3>
+                          <div className="text-[8px] font-medium leading-normal uppercase">
+                            <p className="mb-1">
+                              1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
+                            </p>
+                            <p className="mb-1">
+                              2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
+                            </p>
+                            <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
+                              DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
+                            </p>
+                          </div>
+                        </div>
+                      }
+                    />
+                  ))}
+
+                  {/* COPY 2: WAREHOUSE COPY / COPIA CARGO */}
+                  {paginatedBlocks.map((block, pageIdx) => (
+                    <PaginatedSinglePrintPage
+                      key={`war-${pageIdx}`}
+                      title="PACKING LIST"
+                      packingList={packingList}
+                      client={client}
+                      seller={seller}
+                      block={block}
+                      getArticleName={getArticleName}
+                      totalRolls={totalRolls}
+                      totalMeters={totalMeters}
+                      providers={providers}
+                      isLastPage={pageIdx === paginatedBlocks.length - 1}
+                      bottomContent={
+                        <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black print:bg-white">
+                          <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
+                            AVISO IMPORTANTE
+                          </h3>
+                          <div className="text-[8px] font-medium leading-normal uppercase">
+                            <p className="mb-1">
+                              1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
+                            </p>
+                            <p className="mb-1">
+                              2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
+                            </p>
+                            <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
+                              DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
+                            </p>
+                          </div>
+                        </div>
+                      }
+                    />
+                  ))}
+                </>
+              )}
             </>
           )}
 
@@ -1092,6 +1429,331 @@ function CortePrintSheet({
               </div>
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// HELPER COMPONENT: HIGH-FIDELITY GUIA DE REMISIÓN ELECTRONICA (SUNAT)
+// ============================================================================
+
+interface GuiaRemisionPrintSheetProps {
+  guiaSeries: string;
+  guiaNumber: string;
+  fechaHoraEmision: string;
+  formattedFechaTraslado: string;
+  puntoPartida: string;
+  puntoLlegada: string;
+  clientRuc: string;
+  clientName: string;
+  motivo: string;
+  pesoBruto: string;
+  unidadMedida: string;
+  driverName: string;
+  driverLicense: string;
+  vehiclePlate: string;
+  observaciones: string;
+  despachadorName: string;
+  despachadorDni: string;
+  packingList: PackingList;
+  getArticleName: (id: string) => string;
+  groupedItems: Record<string, PackingListItem[]>;
+}
+
+function GuiaRemisionPrintSheet({
+  guiaSeries,
+  guiaNumber,
+  fechaHoraEmision,
+  formattedFechaTraslado,
+  puntoPartida,
+  puntoLlegada,
+  clientRuc,
+  clientName,
+  motivo,
+  pesoBruto,
+  unidadMedida,
+  driverName,
+  driverLicense,
+  vehiclePlate,
+  observaciones,
+  despachadorName,
+  despachadorDni,
+  getArticleName,
+  groupedItems,
+}: GuiaRemisionPrintSheetProps) {
+  
+  // Group packing list items by Article ID and calculate summaries
+  const itemsList = React.useMemo(() => {
+    return Object.keys(groupedItems).map((articleId, index) => {
+      const items = groupedItems[articleId];
+      const articleName = getArticleName(articleId);
+      const totalArticleMeters = items.reduce((acc, item) => acc + Number(item.meters || 0), 0);
+      const rollCount = items.length;
+      return {
+        itemNo: index + 1,
+        code: articleId.substring(0, 9).toUpperCase(),
+        description: articleName.toUpperCase(),
+        pieces: rollCount,
+        unit: 'METRO',
+        quantity: totalArticleMeters.toFixed(2),
+      };
+    });
+  }, [groupedItems, getArticleName]);
+
+  return (
+    <div translate="no" className="notranslate bg-white text-black p-8 border border-gray-300 rounded-xl shadow-lg font-sans max-w-3xl w-full my-2 min-h-[296mm] flex flex-col justify-between print-page print:border-none print:shadow-none print:p-0 print:my-0 print:bg-white box-border">
+      
+      <div>
+        {/* Top Header: Issuer left, RUC Box right */}
+        <div className="flex justify-between items-start gap-4 mb-6">
+          
+          {/* Issuer Details */}
+          <div className="flex-1 flex gap-3.5 items-center">
+            {/* Styled Circle with J Green Logo */}
+            <div className="h-14 w-14 shrink-0 bg-[#E8F5E9] border-2 border-[#2E7D32] rounded-xl flex flex-col items-center justify-center text-center">
+              <span className="text-2xl font-extrabold text-[#2E7D32] font-display">J</span>
+              <span className="text-[7px] font-bold text-[#1B5E20] uppercase leading-none tracking-tight">Juditex</span>
+            </div>
+            <div className="space-y-1">
+              <h1 className="text-[#1B5E20] text-base font-black tracking-tight leading-none uppercase">DEALER TEXTIL SRL</h1>
+              <p className="text-[8px] font-bold text-gray-500 uppercase tracking-wide leading-tight">
+                CALLE IGNACIO COSSIO NRO. 1363 (UBICADO FRENTE A UN PARQUE) LIMA - LIMA - LA VICTORIA
+              </p>
+              <p className="text-[7.5px] font-semibold text-gray-400 uppercase leading-none mt-1">
+                Moda con estilo sostenible • Almacén Central de Distribución
+              </p>
+            </div>
+          </div>
+
+          {/* Official SUNAT RUC Box */}
+          <div className="w-60 border border-black p-3.5 text-center bg-white space-y-1 rounded shrink-0">
+            <p className="text-[11px] font-black tracking-wider text-gray-800">R.U.C. 20509615595</p>
+            <h2 className="text-[9.5px] font-black tracking-wider text-gray-900 uppercase py-0.5 border-y border-gray-200">
+              GUÍA DE REMISIÓN REMITENTE
+            </h2>
+            <p className="text-xs font-black text-red-600 tracking-widest font-mono pt-1">
+              N° {guiaSeries}-{guiaNumber}
+            </p>
+          </div>
+        </div>
+
+        {/* Section 1: Dates & Places */}
+        <div className="grid grid-cols-12 gap-x-4 gap-y-2 text-[9px] border-b border-gray-200 pb-3 mb-3">
+          <div className="col-span-12 md:col-span-6 space-y-1.5">
+            <div className="flex">
+              <span className="w-32 font-black uppercase text-gray-500 shrink-0">Fecha de Emisión:</span>
+              <span className="font-mono font-bold text-gray-800">{fechaHoraEmision}</span>
+            </div>
+            <div className="flex">
+              <span className="w-32 font-black uppercase text-gray-500 shrink-0">Inicio de traslado:</span>
+              <span className="font-mono font-bold text-gray-800">{formattedFechaTraslado}</span>
+            </div>
+          </div>
+
+          <div className="col-span-12 md:col-span-6 space-y-1.5">
+            <div className="flex items-start">
+              <span className="w-28 font-black uppercase text-gray-500 shrink-0">RUC Destinatario:</span>
+              <span className="font-mono font-bold text-gray-800 uppercase shrink-0">{clientRuc}</span>
+            </div>
+            <div className="flex items-start">
+              <span className="w-28 font-black uppercase text-gray-500 shrink-0">Destinatario:</span>
+              <span className="font-bold text-gray-900 uppercase leading-tight">{clientName}</span>
+            </div>
+          </div>
+
+          <div className="col-span-12 space-y-1 pt-2 border-t border-gray-100">
+            <div className="flex items-start">
+              <span className="w-28 font-black uppercase text-gray-500 shrink-0">Punto de partida:</span>
+              <span className="font-medium text-gray-800 uppercase leading-snug">{puntoPartida}</span>
+            </div>
+            <div className="flex items-start">
+              <span className="w-28 font-black uppercase text-gray-500 shrink-0">Punto de llegada:</span>
+              <span className="font-extrabold text-gray-950 uppercase leading-snug bg-gray-50 px-1 py-0.5 rounded border border-gray-100">{puntoLlegada}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2: Detalle de la guía */}
+        <div className="mb-3">
+          <div className="bg-gray-100 px-3 py-1 font-black text-[8.5px] uppercase tracking-wider text-gray-700 border-l-4 border-gray-500 mb-2">
+            DETALLE DEL TRASLADO:
+          </div>
+          <div className="grid grid-cols-5 gap-2 text-[8.5px] text-gray-800 bg-gray-50 border border-gray-200 p-2 rounded">
+            <div>
+              <p className="font-black uppercase text-gray-400 text-[7.5px]">Modalidad</p>
+              <p className="font-bold uppercase mt-0.5">PRIVADO</p>
+            </div>
+            <div>
+              <p className="font-black uppercase text-gray-400 text-[7.5px]">Motivo Traslado</p>
+              <p className="font-bold uppercase mt-0.5 text-app-primary">{motivo}</p>
+            </div>
+            <div>
+              <p className="font-black uppercase text-gray-400 text-[7.5px]">Descripción</p>
+              <p className="font-bold uppercase mt-0.5 text-gray-400">- - -</p>
+            </div>
+            <div>
+              <p className="font-black uppercase text-gray-400 text-[7.5px]">U. M.</p>
+              <p className="font-bold uppercase mt-0.5">{unidadMedida}</p>
+            </div>
+            <div>
+              <p className="font-black uppercase text-gray-400 text-[7.5px]">Peso Bruto Total</p>
+              <p className="font-mono font-black text-gray-900 mt-0.5">{Number(pesoBruto).toFixed(3)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 3: Items table list */}
+        <div className="mb-4">
+          <table className="w-full text-left border-collapse border border-gray-200 text-[9px]">
+            <thead>
+              <tr className="bg-gray-100 text-gray-700 uppercase font-black text-[8px] tracking-wider border-b border-gray-300">
+                <th className="py-1.5 px-2 border-r border-gray-200 w-10 text-center">ITEM</th>
+                <th className="py-1.5 px-2 border-r border-gray-200 w-20 text-center">CÓDIGO</th>
+                <th className="py-1.5 px-3 border-r border-gray-200">DESCRIPCIÓN DEL PRODUCTO (DENIM)</th>
+                <th className="py-1.5 px-2 border-r border-gray-200 w-16 text-center">PIEZAS</th>
+                <th className="py-1.5 px-2 border-r border-gray-200 w-16 text-center">UNIDAD</th>
+                <th className="py-1.5 px-3 w-24 text-right">CANTIDAD</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itemsList.map((item) => (
+                <tr key={item.itemNo} className="border-b border-gray-200">
+                  <td className="py-1.5 px-2 border-r border-gray-200 text-center font-mono font-bold text-gray-700">{item.itemNo}</td>
+                  <td className="py-1.5 px-2 border-r border-gray-200 text-center font-mono text-gray-500">{item.code}</td>
+                  <td className="py-1.5 px-3 border-r border-gray-200 font-bold text-gray-900 uppercase">{item.description}</td>
+                  <td className="py-1.5 px-2 border-r border-gray-200 text-center font-mono font-bold text-gray-700">{item.pieces}</td>
+                  <td className="py-1.5 px-2 border-r border-gray-200 text-center uppercase text-gray-500">{item.unit}</td>
+                  <td className="py-1.5 px-3 text-right font-mono font-black text-gray-900">{Number(item.quantity).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Section 4: Datos del contenedor / transportista / vehiculo */}
+        <div className="space-y-3.5 mb-4">
+          
+          <div className="grid grid-cols-2 gap-3">
+            {/* Driver */}
+            <div className="border border-gray-200 rounded p-2 text-[8.5px] space-y-1">
+              <p className="font-black text-gray-400 uppercase text-[7.5px]">DATOS DEL CHOFER / TRANSPORTISTA:</p>
+              <p className="font-bold text-gray-800">
+                Chofer: <span className="font-black uppercase text-gray-950">{driverName}</span>
+              </p>
+              <p className="font-bold text-gray-800">
+                Licencia: <span className="font-mono font-black text-gray-900">{driverLicense}</span>
+              </p>
+            </div>
+
+            {/* Vehicle */}
+            <div className="border border-gray-200 rounded p-2 text-[8.5px] space-y-1">
+              <p className="font-black text-gray-400 uppercase text-[7.5px]">DATOS DE UNIDAD DE TRANSPORTE:</p>
+              <p className="font-bold text-gray-800">
+                Placa Vehicular: <span className="font-mono font-black text-gray-950 uppercase bg-yellow-50 px-1 py-0.5 rounded border border-yellow-100">{vehiclePlate}</span>
+              </p>
+              <p className="font-bold text-gray-800">
+                Tipo Modalidad: <span className="uppercase text-gray-600 font-bold">TRANSPORTE PRIVADO</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Observaciones */}
+          <div className="border border-gray-200 rounded p-2 text-[8.5px]">
+            <p className="font-black text-gray-400 uppercase text-[7.5px]">OBSERVACIONES:</p>
+            <p className="font-medium text-gray-700 mt-1 uppercase leading-relaxed font-mono">
+              {observaciones || '- - -'}
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      {/* Signature and Footer Section */}
+      <div className="border-t border-gray-200 pt-3 mt-2">
+        
+        {/* Signatures Row */}
+        <div className="grid grid-cols-2 gap-6 text-[8.5px] text-center mb-3">
+          <div className="space-y-1">
+            <div className="h-8 flex items-end justify-center">
+              <div className="border border-green-200 text-green-700 text-[7px] px-2 py-0.5 rounded-xs font-black tracking-widest uppercase rotate-[-1deg] bg-green-50/45 no-print">
+                SISTEMA EMISOR ELECTRÓNICO SUNAT
+              </div>
+            </div>
+            <div className="border-t border-gray-300 pt-1 max-w-xs mx-auto space-y-0.5">
+              <p className="font-black uppercase text-gray-800">DESPACHO / ALMACÉN</p>
+              <p className="text-gray-500 font-bold uppercase text-[7.5px]">{despachadorName}</p>
+              {despachadorDni && <p className="text-gray-400 font-mono text-[7px]">DNI: {despachadorDni}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="h-8"></div>
+            <div className="border-t border-gray-300 pt-1 max-w-xs mx-auto space-y-0.5">
+              <p className="font-black uppercase text-gray-800">CONFORMIDAD DEL CLIENTE</p>
+              <p className="text-gray-400 font-medium">Firma:</p>
+              <p className="text-gray-300 font-mono text-[7px]">DNI: _______________________</p>
+            </div>
+          </div>
+        </div>
+
+        {/* QR & Footer block */}
+        <div className="flex items-center gap-4 border-t border-gray-100 pt-3">
+          
+          {/* Beautiful SVG QR code */}
+          <div className="border border-gray-200 p-1 bg-white shrink-0 rounded">
+            <svg className="w-14 h-14" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="100" height="100" fill="white" />
+              <rect x="5" y="5" width="20" height="20" fill="black" />
+              <rect x="9" y="9" width="12" height="12" fill="white" />
+              <rect x="12" y="12" width="6" height="6" fill="black" />
+
+              <rect x="75" y="5" width="20" height="20" fill="black" />
+              <rect x="79" y="9" width="12" height="12" fill="white" />
+              <rect x="82" y="12" width="6" height="6" fill="black" />
+
+              <rect x="5" y="75" width="20" height="20" fill="black" />
+              <rect x="9" y="79" width="12" height="12" fill="white" />
+              <rect x="12" y="82" width="6" height="6" fill="black" />
+
+              <rect x="75" y="75" width="20" height="20" fill="black" />
+              <rect x="79" y="79" width="12" height="12" fill="white" />
+              <rect x="82" y="82" width="6" height="6" fill="black" />
+
+              <rect x="30" y="5" width="4" height="4" fill="black" />
+              <rect x="40" y="5" width="8" height="4" fill="black" />
+              <rect x="55" y="5" width="4" height="8" fill="black" />
+              <rect x="65" y="10" width="6" height="6" fill="black" />
+              <rect x="30" y="20" width="4" height="4" fill="black" />
+              <rect x="45" y="15" width="4" height="4" fill="black" />
+              <rect x="50" y="25" width="12" height="4" fill="black" />
+
+              <rect x="30" y="30" width="8" height="8" fill="black" />
+              <rect x="45" y="35" width="12" height="4" fill="black" />
+              <rect x="60" y="30" width="4" height="12" fill="black" />
+              <rect x="70" y="35" width="4" height="4" fill="black" />
+              <rect x="35" y="45" width="4" height="12" fill="black" />
+              <rect x="45" y="45" width="8" height="4" fill="black" />
+              <rect x="55" y="45" width="4" height="8" fill="black" />
+
+              <rect x="30" y="60" width="16" height="4" fill="black" />
+              <rect x="50" y="55" width="4" height="12" fill="black" />
+              <rect x="65" y="55" width="8" height="8" fill="black" />
+              <rect x="60" y="65" width="4" height="4" fill="black" />
+
+              <rect x="30" y="70" width="4" height="12" fill="black" />
+              <rect x="40" y="75" width="12" height="4" fill="black" />
+              <rect x="55" y="70" width="6" height="6" fill="black" />
+              <rect x="65" y="70" width="4" height="4" fill="black" />
+            </svg>
+          </div>
+
+          {/* Official disclaimer */}
+          <div className="text-[7.5px] font-semibold text-gray-400 uppercase tracking-wide leading-normal">
+            <p>Representación Impresa de la Guía de Remisión Remitente Electrónica. Autorizado mediante SUNAT.</p>
+            <p className="font-black text-gray-500 font-mono mt-0.5">HASH: 2E9A3C2F1D8B4E7A9C5E3D2F1B0A5F2C8E7D1C3B</p>
+          </div>
         </div>
       </div>
     </div>
