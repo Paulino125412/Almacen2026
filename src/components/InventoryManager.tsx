@@ -1201,7 +1201,7 @@ export default function InventoryManager({
                 <button
                   onClick={handleConfirmBulkDelete}
                   disabled={isBulkDeleting}
-                  className="px-3 py-1.5 bg-red-650 hover:bg-red-750 text-white rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer uppercase tracking-wider"
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer uppercase tracking-wider"
                 >
                   {isBulkDeleting ? (
                     <>

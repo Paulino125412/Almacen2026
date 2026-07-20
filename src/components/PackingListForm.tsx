@@ -1523,7 +1523,7 @@ export default function PackingListForm({
                 </p>
                 
                 {(editingPackingList || isDuplicate) && (
-                  <div className="bg-amber-50 dark:bg-amber-950/15 border border-amber-200 dark:border-amber-900/30 rounded p-3 text-[10px] text-amber-850 dark:text-amber-400 font-medium">
+                  <div className="bg-amber-50 dark:bg-amber-950/15 border border-amber-200 dark:border-amber-900/30 rounded p-3 text-[10px] text-amber-900 dark:text-amber-400 font-medium">
                     ⚠️ Se cancelará el modo de <strong>{isDuplicate ? 'duplicación' : 'edición'}</strong> actual y volverás al formulario vacío de nuevo ingreso.
                   </div>
                 )}
