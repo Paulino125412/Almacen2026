@@ -13,7 +13,8 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff,woff2,ttf}']
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff,woff2,ttf}'],
+          maximumFileSizeToCacheInBytes: 8 * 1024 * 1024
         },
         manifest: {
           name: 'BUSINESS SUITE',

@@ -866,7 +866,12 @@ function PaginatedSinglePrintPage({
             <h1 className="text-2xl font-display text-app-primary">{title}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-md font-display text-app-secondary">GRUPO JUDITEX</span>
+            <img 
+              src="/logo-juditex.png" 
+              alt="Juditex" 
+              className="h-12 w-auto object-contain print:opacity-100" 
+              referrerPolicy="no-referrer"
+            />
           </div>
         </div>
 
@@ -1016,7 +1021,12 @@ function SinglePrintPage({
             <span className="warehouse-tag">
               GUÍA N°: {packingList.guideNumber || '___________'}
             </span>
-            <span className="text-md font-display text-app-secondary">GRUPO JUDITEX</span>
+            <img 
+              src="/logo-juditex.png" 
+              alt="Juditex" 
+              className="h-12 w-auto object-contain print:opacity-100" 
+              referrerPolicy="no-referrer"
+            />
           </div>
         </div>
 
@@ -1168,9 +1178,12 @@ function CortePrintSheet({
             <div className="flex items-center gap-2">
               <h2 className="text-base font-display text-app-primary">PACKING LIST</h2>
             </div>
-            <span className="text-xs font-display text-app-secondary">
-              GRUPO JUDITEX
-            </span>
+            <img 
+              src="/logo-juditex.png" 
+              alt="Juditex" 
+              className="h-10 w-auto object-contain print:opacity-100" 
+              referrerPolicy="no-referrer"
+            />
           </div>
 
           {/* Client / Seller / Date details - Identical layout on both halves */}
@@ -1321,9 +1334,12 @@ function CortePrintSheet({
             <div className="flex items-center gap-2">
               <h2 className="text-base font-display text-app-primary">PACKING LIST</h2>
             </div>
-            <span className="text-xs font-display text-app-secondary">
-              GRUPO JUDITEX
-            </span>
+            <img 
+              src="/logo-juditex.png" 
+              alt="Juditex" 
+              className="h-10 w-auto object-contain print:opacity-100" 
+              referrerPolicy="no-referrer"
+            />
           </div>
 
           {/* Client / Seller / Date details - Identical layout on both halves */}
@@ -1512,10 +1528,12 @@ function GuiaRemisionPrintSheet({
           {/* Issuer Details */}
           <div className="flex-1 flex gap-3.5 items-center">
             {/* Styled Circle with J Green Logo */}
-            <div className="h-14 w-14 shrink-0 bg-[#E8F5E9] border-2 border-[#2E7D32] rounded-xl flex flex-col items-center justify-center text-center">
-              <span className="text-2xl font-extrabold text-[#2E7D32] font-display">J</span>
-              <span className="text-[7px] font-bold text-[#1B5E20] uppercase leading-none tracking-tight">Juditex</span>
-            </div>
+            <img 
+              src="/logo-juditex.png" 
+              alt="Juditex" 
+              className="h-16 w-auto shrink-0 object-contain print:opacity-100" 
+              referrerPolicy="no-referrer"
+            />
             <div className="space-y-1">
               <h1 className="text-[#1B5E20] text-base font-black tracking-tight leading-none uppercase">DEALER TEXTIL SRL</h1>
               <p className="text-[8px] font-bold text-gray-500 uppercase tracking-wide leading-tight">
