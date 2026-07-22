@@ -3,7 +3,7 @@ import { PackingList, Client, Seller, Provider, Article, RollItem } from '../typ
 import { db, deleteDoc, updateDoc } from '../firebase';
 import { doc } from 'firebase/firestore';
 import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, Copy, FileSpreadsheet, MessageCircle } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { exportPackingListSummaryToExcel, exportPackingListFullDetailsToExcel, exportSinglePackingListToExcel } from '../utils/excelExport';
 
 interface PackingListHistoryProps {
   packingLists: PackingList[];
@@ -76,228 +76,28 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
   };
 
   // 1. Export summary of filtered Packing Lists to Excel
-  const handleExportSummary = () => {
-    const data = filteredLists.map(pl => {
-      const totalMeters = pl.items.reduce((acc, item) => acc + item.meters, 0);
-      return {
-        'Nº Packing List': pl.packingListNo,
-        'Fecha Despacho': pl.date,
-        'Cliente': getClientName(pl.clientId),
-        'Vendedor': getSellerName(pl.sellerId),
-        'Cant. Ítems / Rollos': pl.items.length,
-        'Mts Despachados (m)': Number(totalMeters.toFixed(2)),
-        'Notas / Observaciones': pl.notes || ''
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    
-    // Set column widths for better readability
-    ws['!cols'] = [
-      { wch: 18 }, // PL
-      { wch: 15 }, // Fecha
-      { wch: 30 }, // Cliente
-      { wch: 20 }, // Vendedor
-      { wch: 20 }, // Cant Ítems
-      { wch: 20 }, // Mts
-      { wch: 40 }  // Notas
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Resumen Despachos');
-    XLSX.writeFile(wb, `Resumen_Despachos_PackingLists_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const handleExportSummary = async () => {
+    if (filteredLists.length === 0) {
+      alert('No hay despachos filtrados para exportar');
+      return;
+    }
+    await exportPackingListSummaryToExcel(filteredLists, clients, sellers);
   };
 
   // 2. Export deep/flattened details of all filtered roll items to Excel
-  const handleExportFullDetails = () => {
-    let hasLote = false;
-    let hasPartida = false;
-    let hasTono = false;
-    let hasWidth = false;
-    let hasWeight = false;
-
-    filteredLists.forEach(pl => {
-      pl.items.forEach(item => {
-        if (item.lot && item.lot.trim() !== '') hasLote = true;
-        if (item.partida && item.partida.trim() !== '') hasPartida = true;
-        if (item.tono && item.tono.trim() !== '') hasTono = true;
-        if (item.width && item.width.trim() !== '') hasWidth = true;
-        if (item.weight && item.weight.trim() !== '') hasWeight = true;
-      });
-    });
-
-    const data: any[] = [];
-    
-    filteredLists.forEach(pl => {
-      pl.items.forEach(item => {
-        const articleObj = articles.find(a => a.id === item.articleId);
-        
-        const row: any = {
-          'Nº Packing List': pl.packingListNo,
-          'Fecha Despacho': pl.date,
-          'Cliente': getClientName(pl.clientId),
-          'Vendedor': getSellerName(pl.sellerId),
-          'Artículo / Tela': articleObj?.name || item.articleId || '',
-          'Descripción Artículo': articleObj?.description || '',
-          'Rollo / Ítem Nº': item.rollNumber,
-          'Metraje Despachado (m)': Number(item.meters.toFixed(2)),
-        };
-
-        if (hasLote) {
-          row['Lote'] = item.lot || '';
-        }
-        if (hasPartida) {
-          row['Partida'] = item.partida || '';
-        }
-        if (hasTono) {
-          row['Tono'] = item.tono || '';
-        }
-        if (hasWidth) {
-          row['Ancho'] = item.width || '';
-        }
-        if (hasWeight) {
-          row['Peso'] = item.weight || '';
-        }
-
-        row['Notas / Observaciones'] = pl.notes || '';
-        data.push(row);
-      });
-    });
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    
-    // Set column widths dynamically
-    const cols = [
-      { wch: 18 }, // PL
-      { wch: 15 }, // Fecha
-      { wch: 30 }, // Cliente
-      { wch: 20 }, // Vendedor
-      { wch: 25 }, // Tela
-      { wch: 30 }, // Desc
-      { wch: 15 }, // Rollo
-      { wch: 22 }, // Metraje
-    ];
-    if (hasLote) cols.push({ wch: 15 });
-    if (hasPartida) cols.push({ wch: 15 });
-    if (hasTono) cols.push({ wch: 10 });
-    if (hasWidth) cols.push({ wch: 12 });
-    if (hasWeight) cols.push({ wch: 12 });
-    cols.push({ wch: 40 }); // Notas
-
-    ws['!cols'] = cols;
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Detalle de Rollos');
-    XLSX.writeFile(wb, `Detalle_General_Despachos_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const handleExportFullDetails = async () => {
+    if (filteredLists.length === 0) {
+      alert('No hay despachos filtrados para exportar');
+      return;
+    }
+    await exportPackingListFullDetailsToExcel(filteredLists, articles, clients, sellers);
   };
 
   // 3. Export a single Packing List in beautiful, print-ready custom format
-  const handleExportSinglePL = (pl: PackingList) => {
-    const clientName = getClientName(pl.clientId);
+  const handleExportSinglePL = async (pl: PackingList) => {
     const clientObj = clients.find(c => c.id === pl.clientId);
-    const sellerName = getSellerName(pl.sellerId);
-
-    let hasLote = false;
-    let hasPartida = false;
-    let hasTono = false;
-    let hasWidth = false;
-    let hasWeight = false;
-
-    pl.items.forEach(item => {
-      if (item.lot && item.lot.trim() !== '') hasLote = true;
-      if (item.partida && item.partida.trim() !== '') hasPartida = true;
-      if (item.tono && item.tono.trim() !== '') hasTono = true;
-      if (item.width && item.width.trim() !== '') hasWidth = true;
-      if (item.weight && item.weight.trim() !== '') hasWeight = true;
-    });
-    
-    const headerInfo = [
-      ['DETALLE DE DOCUMENTO - PACKING LIST', ''],
-      ['', ''],
-      ['Número de Packing List:', pl.packingListNo],
-      ['Fecha de Despacho:', pl.date],
-      ['Cliente:', clientName],
-      ['RUC/DNI Cliente:', clientObj?.dni || ''],
-      ['Vendedor:', sellerName],
-      ['Notas / Observaciones:', pl.notes || ''],
-      ['', ''],
-      ['DETALLE DE ARTÍCULOS Y ROLLOS DESPACHADOS', ''],
-      ['', '']
-    ];
-
-    const tableHeaders = [
-      'Ítem',
-      'Artículo / Tela',
-      'Descripción',
-    ];
-    if (hasLote) tableHeaders.push('Lote');
-    if (hasPartida) tableHeaders.push('Partida');
-    if (hasTono) tableHeaders.push('Tono');
-    if (hasWidth) tableHeaders.push('Ancho');
-    if (hasWeight) tableHeaders.push('Peso');
-    tableHeaders.push('Rollo / Corte Nro', 'Metraje Despachado (m)');
-
-    const itemRows = pl.items.map((item, index) => {
-      const articleObj = articles.find(a => a.id === item.articleId);
-      const row: any[] = [
-        index + 1,
-        articleObj?.name || item.articleId || '',
-        articleObj?.description || '',
-      ];
-      if (hasLote) row.push(item.lot || '');
-      if (hasPartida) row.push(item.partida || '');
-      if (hasTono) row.push(item.tono || '');
-      if (hasWidth) row.push(item.width || '');
-      if (hasWeight) row.push(item.weight || '');
-      row.push(item.rollNumber, Number(item.meters.toFixed(2)));
-      return row;
-    });
-
-    const numCols = tableHeaders.length;
-    const totalMeters = pl.items.reduce((acc, item) => acc + item.meters, 0);
-    
-    const footerRows = [
-      Array(numCols).fill(''),
-      ['RESUMEN TOTALES', ...Array(numCols - 3).fill(''), 'Total Ítems/Rollos', pl.items.length],
-      [...Array(numCols - 2).fill(''), 'Total Metraje Despachado', Number(totalMeters.toFixed(2))]
-    ];
-
-    const fullMatrix = [
-      ...headerInfo,
-      tableHeaders,
-      ...itemRows,
-      ...footerRows
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(fullMatrix);
-    
-    // Auto fit/set column widths dynamically
-    const cols = [
-      { wch: 8 },  // Ítem / Label
-      { wch: 25 }, // Tela
-      { wch: 30 }, // Desc
-    ];
-    if (hasLote) cols.push({ wch: 15 });
-    if (hasPartida) cols.push({ wch: 15 });
-    if (hasTono) cols.push({ wch: 10 });
-    if (hasWidth) cols.push({ wch: 12 });
-    if (hasWeight) cols.push({ wch: 12 });
-    cols.push(
-      { wch: 20 }, // Rollo / Label
-      { wch: 25 }  // Metraje / Value
-    );
-
-    ws['!cols'] = cols;
-
-    // Merge titles for styling
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } }, // Title 1
-      { s: { r: 9, c: 0 }, e: { r: 9, c: numCols - 1 } } // Title 2
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `PL ${pl.packingListNo}`);
-    XLSX.writeFile(wb, `PackingList_${pl.packingListNo}.xlsx`);
+    const sellerObj = sellers.find(s => s.id === pl.sellerId);
+    await exportSinglePackingListToExcel(pl, clientObj, sellerObj, articles);
   };
 
   // Sort packing lists by sequential PL number descending (newest number first)

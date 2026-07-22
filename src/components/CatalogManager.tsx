@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Client, Seller, Provider, Article, PackingList } from '../types';
 import { db, addDoc, updateDoc, deleteDoc } from '../firebase';
 import { collection, doc } from 'firebase/firestore';
-import { Plus, Edit2, Trash2, Users, Briefcase, Truck, Layers, Check, X, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Briefcase, Truck, Layers, Check, X, Search, FileSpreadsheet } from 'lucide-react';
+import { exportCatalogToExcel } from '../utils/excelExport';
 
 interface CatalogManagerProps {
   clients: Client[];
@@ -364,6 +365,52 @@ export default function CatalogManager({
     }
   };
 
+  const handleExportCatalogExcel = () => {
+    let listToExport: any[] = [];
+    if (activeTab === 'clients') {
+      listToExport = clients.filter(c => {
+        const q = searchQuery.toLowerCase().trim();
+        if (!q) return true;
+        return (
+          c.name.toLowerCase().includes(q) ||
+          (c.dni || '').toLowerCase().includes(q) ||
+          (c.email || '').toLowerCase().includes(q) ||
+          (c.phone || '').toLowerCase().includes(q) ||
+          (c.address || '').toLowerCase().includes(q)
+        );
+      });
+    } else if (activeTab === 'articles') {
+      listToExport = articles.filter(a => {
+        const q = searchQuery.toLowerCase().trim();
+        if (!q) return true;
+        const prov = providers.find(p => p.id === a.providerId);
+        return (
+          a.name.toLowerCase().includes(q) ||
+          (a.description || '').toLowerCase().includes(q) ||
+          (prov?.name || '').toLowerCase().includes(q)
+        );
+      });
+    } else if (activeTab === 'providers') {
+      listToExport = providers.filter(p => {
+        const q = searchQuery.toLowerCase().trim();
+        if (!q) return true;
+        return p.name.toLowerCase().includes(q);
+      });
+    } else if (activeTab === 'sellers') {
+      listToExport = sellers.filter(s => {
+        const q = searchQuery.toLowerCase().trim();
+        if (!q) return true;
+        return (
+          s.name.toLowerCase().includes(q) ||
+          (s.email || '').toLowerCase().includes(q) ||
+          (s.phone || '').toLowerCase().includes(q)
+        );
+      });
+    }
+
+    exportCatalogToExcel(activeTab, listToExport, { providers, articles });
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 p-1">
       {/* Sidebar navigation */}
@@ -710,30 +757,41 @@ export default function CatalogManager({
                 activeTab === 'clients' ? 'Clientes' : 'Vendedores'
               }
             </h3>
-            <div className="relative w-full sm:w-72">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-app-text/50">
-                <Search size={14} />
-              </span>
-              <input
-                type="text"
-                placeholder={`Buscar ${
-                  activeTab === 'providers' ? 'proveedor...' :
-                  activeTab === 'articles' ? 'tela o descripción...' :
-                  activeTab === 'clients' ? 'cliente, RUC/DNI...' : 'vendedor...'
-                }`}
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary placeholder:text-app-text/45"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-app-text/50 hover:text-app-text"
-                >
-                  <X size={13} />
-                </button>
-              )}
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={handleExportCatalogExcel}
+                className="px-3.5 py-1.5 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs uppercase tracking-wider shrink-0"
+                title={`Exportar ${activeTab} a Excel`}
+              >
+                <FileSpreadsheet size={14} className="text-app-text/60" />
+                Exportar Excel
+              </button>
+              <div className="relative w-full sm:w-64">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-app-text/50">
+                  <Search size={14} />
+                </span>
+                <input
+                  type="text"
+                  placeholder={`Buscar ${
+                    activeTab === 'providers' ? 'proveedor...' :
+                    activeTab === 'articles' ? 'tela o descripción...' :
+                    activeTab === 'clients' ? 'cliente, RUC/DNI...' : 'vendedor...'
+                  }`}
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary placeholder:text-app-text/45"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-app-text/50 hover:text-app-text"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

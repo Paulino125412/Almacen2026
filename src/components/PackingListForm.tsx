@@ -1231,7 +1231,7 @@ export default function PackingListForm({
         </div>
 
         {/* Toggle between Nuevo, Antiguo, or Corte */}
-        <div className="flex bg-app-bg p-1 rounded border border-app-border gap-1 flex-wrap">
+        <div className="flex bg-app-bg p-1 rounded-lg border border-app-border gap-1 flex-wrap w-full sm:w-auto">
           <button
             type="button"
             onClick={() => {
@@ -1244,7 +1244,7 @@ export default function PackingListForm({
                 }))
               })));
             }}
-            className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 py-2.5 md:py-1 rounded-md text-xs font-semibold transition cursor-pointer min-h-[40px] md:min-h-0 flex-1 sm:flex-none text-center flex items-center justify-center ${
               packingType === 'nuevo'
                 ? 'bg-app-primary text-white shadow-xs'
                 : 'text-app-text/60 hover:text-app-text hover:bg-app-bg'
@@ -1267,7 +1267,7 @@ export default function PackingListForm({
                 }))
               })));
             }}
-            className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 py-2.5 md:py-1 rounded-md text-xs font-semibold transition cursor-pointer min-h-[40px] md:min-h-0 flex-1 sm:flex-none text-center flex items-center justify-center ${
               packingType === 'antiguo'
                 ? 'bg-app-primary text-white shadow-xs'
                 : 'text-app-text/60 hover:text-app-text hover:bg-app-bg'
@@ -1290,7 +1290,7 @@ export default function PackingListForm({
                 }))
               })));
             }}
-            className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer ${
+            className={`px-3 py-2.5 md:py-1 rounded-md text-xs font-semibold transition cursor-pointer min-h-[40px] md:min-h-0 flex-1 sm:flex-none text-center flex items-center justify-center ${
               packingType === 'corte'
                 ? 'bg-app-primary text-white shadow-xs'
                 : 'text-app-text/60 hover:text-app-text hover:bg-app-bg'
@@ -1404,14 +1404,14 @@ export default function PackingListForm({
 
         {/* Dynamic Nested Articles Sections */}
         <div className="space-y-6">
-          <div className="flex justify-between items-center border-b border-app-border pb-2">
+          <div className="flex justify-between items-center border-b border-app-border pb-2 gap-2 flex-wrap">
             <h3 className="text-xs font-black text-app-text uppercase tracking-widest">
               Artículos en el Despacho
             </h3>
             <button
               type="button"
               onClick={handleAddArticleGroup}
-              className="px-4 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              className="px-4 py-2.5 md:py-1.5 bg-app-primary hover:bg-app-primary/90 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs min-h-[40px] md:min-h-0 w-full sm:w-auto"
               id="btn-add-article-section"
             >
               <Plus size={14} />
@@ -1445,15 +1445,15 @@ export default function PackingListForm({
         </div>
 
         {/* Submit Actions */}
-        <div className="flex justify-end items-center gap-4 border-t border-app-border pt-4 flex-wrap">
-          <span className="text-[10px] text-app-text/45 font-semibold font-mono no-print">
+        <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 border-t border-app-border pt-4">
+          <span className="text-[10px] text-app-text/45 font-semibold font-mono no-print text-center sm:text-left sm:mr-auto">
             Atajo: <span className="bg-app-bg border border-app-border rounded px-1.5 py-0.5 font-bold">Ctrl + Enter</span> para guardar
           </span>
           {editingPackingList && (
             <button
               type="button"
               onClick={onCancelEdit}
-              className="px-4 py-2.5 bg-app-bg hover:bg-app-border text-app-text font-bold rounded-lg text-sm transition cursor-pointer border border-app-border"
+              className="px-4 py-3 sm:py-2.5 bg-app-bg hover:bg-app-border text-app-text font-bold rounded-lg text-sm transition cursor-pointer border border-app-border min-h-[44px] sm:min-h-0 flex items-center justify-center"
             >
               Cancelar {isDuplicate ? 'Duplicación' : 'Modificación'}
             </button>
@@ -1462,7 +1462,7 @@ export default function PackingListForm({
             type="button"
             disabled={!hasContent && !editingPackingList && !isDuplicate}
             onClick={() => setIsResetConfirmOpen(true)}
-            className={`px-4 py-2.5 border rounded-lg text-sm font-bold transition flex items-center gap-1.5 ${
+            className={`px-4 py-3 sm:py-2.5 border rounded-lg text-sm font-bold transition flex items-center justify-center gap-1.5 min-h-[44px] sm:min-h-0 ${
               (hasContent || editingPackingList || isDuplicate)
                 ? 'bg-red-50 dark:bg-red-950/10 hover:bg-red-100 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/30 cursor-pointer'
                 : 'bg-app-surface/50 border-app-border text-app-text/30 cursor-not-allowed opacity-50'
@@ -1470,13 +1470,13 @@ export default function PackingListForm({
             id="btn-clear-packinglist"
             title="Borrar todos los datos ingresados en el formulario"
           >
-            <Trash2 size={14} />
+            <Trash2 size={16} />
             Borrar Todo
           </button>
           <button
             type="submit"
             disabled={loading}
-            className={`px-6 py-3 text-white font-bold rounded-lg text-sm transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5 ${
+            className={`px-6 py-3.5 sm:py-3 text-white font-bold rounded-lg text-sm transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5 min-h-[44px] ${
               editingPackingList && !isDuplicate
                 ? 'bg-app-primary hover:bg-app-primary/90'
                 : isDuplicate

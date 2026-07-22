@@ -346,9 +346,9 @@ export default function BarcodeScannerModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="text-app-text/50 hover:text-app-text p-1 hover:bg-app-bg rounded transition cursor-pointer"
+                className="text-app-text/50 hover:text-app-text p-2 md:p-1 min-h-[40px] min-w-[40px] flex items-center justify-center hover:bg-app-bg rounded transition cursor-pointer"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
@@ -413,13 +413,13 @@ export default function BarcodeScannerModal({
 
               {/* Camera Switcher Dropdown */}
               {cameras.length > 1 && (
-                <div className="flex items-center gap-2 justify-center text-xs shrink-0 bg-app-bg border border-app-border px-3 py-1.5 rounded-lg">
-                  <Camera size={14} className="text-app-primary" />
-                  <span className="font-bold text-[9px] uppercase tracking-wider text-app-text/60">Cámara:</span>
+                <div className="flex items-center gap-2 justify-center text-xs shrink-0 bg-app-bg border border-app-border px-3.5 py-2.5 md:py-1.5 rounded-lg min-h-[44px] md:min-h-0">
+                  <Camera size={16} className="text-app-primary shrink-0" />
+                  <span className="font-bold text-[10px] md:text-[9px] uppercase tracking-wider text-app-text/60 shrink-0">Cámara:</span>
                   <select
                     value={selectedCameraId}
                     onChange={(e) => setSelectedCameraId(e.target.value)}
-                    className="bg-transparent font-bold text-app-text border-none focus:ring-0 cursor-pointer pr-4 font-sans py-0 text-xs"
+                    className="bg-transparent font-bold text-app-text border-none focus:ring-0 cursor-pointer pr-4 font-sans py-1 md:py-0 text-xs min-h-[38px] md:min-h-0 flex-1"
                   >
                     {cameras.map((device, idx) => (
                       <option key={device.deviceId} value={device.deviceId} className="bg-app-surface text-app-text">
@@ -433,31 +433,31 @@ export default function BarcodeScannerModal({
               {/* Controls and settings */}
               <div className="space-y-3 shrink-0 border-t border-app-border/60 pt-3">
                 {/* Continuous Scan Toggle */}
-                <div className="flex items-center justify-between bg-app-bg px-3 py-2 rounded-lg border border-app-border">
+                <div className="flex items-center justify-between bg-app-bg px-3.5 py-2.5 md:py-2 rounded-lg border border-app-border min-h-[44px] md:min-h-0">
                   <div className="flex flex-col text-left">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-app-text">
+                    <span className="text-xs md:text-[10px] font-black uppercase tracking-wider text-app-text">
                       Modo Escaneo Continuo
                     </span>
-                    <span className="text-[8px] text-app-text/50">
+                    <span className="text-[9px] md:text-[8px] text-app-text/50">
                       Sigue escaneando sin cerrar la ventana
                     </span>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <label className="relative inline-flex items-center cursor-pointer select-none p-1">
                     <input
                       type="checkbox"
                       checked={isContinuous}
                       onChange={(e) => setIsContinuous(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-8 h-4 bg-app-border rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3.5 after:transition-all peer-checked:bg-app-primary"></div>
+                    <div className="w-9 h-5 md:w-8 md:h-4 bg-app-border rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-1 md:after:top-0.5 after:left-[6px] md:after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 md:after:h-3 md:after:w-3.5 after:transition-all peer-checked:bg-app-primary"></div>
                   </label>
                 </div>
 
                 {/* Manual text backup entry */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-stretch">
                   <input
                     type="text"
-                    placeholder="¿No lee? Escribe código manual aquí..."
+                    placeholder="¿No lee? Escribe código manual..."
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value)}
                     onKeyDown={(e) => {
@@ -465,12 +465,12 @@ export default function BarcodeScannerModal({
                         handleManualSubmit();
                       }
                     }}
-                    className="flex-1 px-3 py-1.5 border border-app-border rounded-lg text-xs font-mono bg-app-surface text-app-text focus:ring-1 focus:ring-app-primary placeholder:font-sans placeholder:text-[10px]"
+                    className="flex-1 px-3 py-2.5 md:py-1.5 border border-app-border rounded-lg text-xs font-mono bg-app-surface text-app-text focus:ring-1 focus:ring-app-primary placeholder:font-sans placeholder:text-xs md:placeholder:text-[10px] min-h-[44px] md:min-h-0"
                   />
                   <button
                     type="button"
                     onClick={handleManualSubmit}
-                    className="px-3 py-1.5 bg-app-surface hover:bg-app-bg border border-app-border text-app-text font-black uppercase tracking-wider text-[10px] rounded-lg transition"
+                    className="px-4 py-2.5 md:py-1.5 bg-app-surface hover:bg-app-bg border border-app-border text-app-text font-black uppercase tracking-wider text-xs md:text-[10px] rounded-lg transition min-h-[44px] md:min-h-0 flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
                   >
                     Cargar
                   </button>

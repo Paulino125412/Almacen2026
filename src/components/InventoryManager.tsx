@@ -4,6 +4,7 @@ import { db, addDoc, updateDoc, deleteDoc } from '../firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
 import InventoryExcelPasteParser from './inventory/InventoryExcelPasteParser';
 import { Search, Filter, Plus, FileSpreadsheet, Info, Wrench, Trash2, ShieldAlert, ArrowDownUp, X, CheckCircle, RefreshCw } from 'lucide-react';
+import { exportInventoryToExcel } from '../utils/excelExport';
 
 interface InventoryManagerProps {
   inventory: RollItem[];
@@ -110,56 +111,13 @@ export default function InventoryManager({
     return inventory.filter(item => item.currentMeters === 0);
   }, [inventory]);
 
-  // Export Inventory list to Excel (CSV)
-  const handleExportExcel = () => {
+  // Export Inventory list to Excel (XLSX with logo and formatting)
+  const handleExportExcel = async () => {
     if (filteredInventory.length === 0) {
       alert('No hay registros filtrados para exportar');
       return;
     }
-
-    let csvContent = '\uFEFF'; // UTF-8 BOM
-    const hasWidth = filteredInventory.some(item => item.width && item.width.trim() !== '');
-    const hasWeight = filteredInventory.some(item => item.weight && item.weight.trim() !== '');
-
-    let headers = ['Nº Rollo', 'Artículo', 'Proveedor', 'Lote', 'Partida', 'Tono'];
-    if (hasWidth) headers.push('Ancho');
-    if (hasWeight) headers.push('Peso');
-    headers.push('Mts Iniciales', 'Mts Actuales', 'Estado', 'Fecha de Ingreso');
-    csvContent += headers.join(',') + '\n';
-
-    filteredInventory.forEach(item => {
-      const art = articles.find(a => a.id === item.articleId)?.name || '-';
-      const prov = providers.find(p => p.id === item.providerId)?.name || '-';
-      const statusLabel = item.currentMeters > 0 ? 'DISPONIBLE' : 'AGOTADO';
-      const formattedDate = new Date(item.createdAt).toLocaleDateString('es-PE');
-
-      const row = [
-        `"${item.rollNumber}"`,
-        `"${art}"`,
-        `"${prov}"`,
-        `"${item.lot || '-'}"`,
-        `"${item.partida || '-'}"`,
-        `"${item.tono || '-'}"`
-      ];
-      if (hasWidth) row.push(`"${item.width || '-'}"`);
-      if (hasWeight) row.push(`"${item.weight || '-'}"`);
-      row.push(
-        item.initialMeters,
-        item.currentMeters,
-        `"${statusLabel}"`,
-        `"${formattedDate}"`
-      );
-      csvContent += row.join(',') + '\n';
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `inventario_telas_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    await exportInventoryToExcel(filteredInventory, articles, providers);
   };
 
   // Submit new roll registration

@@ -1178,12 +1178,6 @@ function CortePrintSheet({
             <div className="flex items-center gap-2">
               <h2 className="text-base font-display text-app-primary">PACKING LIST</h2>
             </div>
-            <img 
-              src="/logo-juditex.png" 
-              alt="Juditex" 
-              className="h-14 w-auto object-contain print:opacity-100" 
-              referrerPolicy="no-referrer"
-            />
           </div>
 
           {/* Client / Seller / Date details - Identical layout on both halves */}
@@ -1334,12 +1328,6 @@ function CortePrintSheet({
             <div className="flex items-center gap-2">
               <h2 className="text-base font-display text-app-primary">PACKING LIST</h2>
             </div>
-            <img 
-              src="/logo-juditex.png" 
-              alt="Juditex" 
-              className="h-14 w-auto object-contain print:opacity-100" 
-              referrerPolicy="no-referrer"
-            />
           </div>
 
           {/* Client / Seller / Date details - Identical layout on both halves */}
