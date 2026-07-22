@@ -869,7 +869,7 @@ function PaginatedSinglePrintPage({
             <img 
               src="/logo-juditex.png" 
               alt="Juditex" 
-              className="h-12 w-auto object-contain print:opacity-100" 
+              className="h-18 w-auto object-contain print:opacity-100" 
               referrerPolicy="no-referrer"
             />
           </div>
@@ -1024,7 +1024,7 @@ function SinglePrintPage({
             <img 
               src="/logo-juditex.png" 
               alt="Juditex" 
-              className="h-12 w-auto object-contain print:opacity-100" 
+              className="h-18 w-auto object-contain print:opacity-100" 
               referrerPolicy="no-referrer"
             />
           </div>
@@ -1181,7 +1181,7 @@ function CortePrintSheet({
             <img 
               src="/logo-juditex.png" 
               alt="Juditex" 
-              className="h-10 w-auto object-contain print:opacity-100" 
+              className="h-14 w-auto object-contain print:opacity-100" 
               referrerPolicy="no-referrer"
             />
           </div>
@@ -1337,7 +1337,7 @@ function CortePrintSheet({
             <img 
               src="/logo-juditex.png" 
               alt="Juditex" 
-              className="h-10 w-auto object-contain print:opacity-100" 
+              className="h-14 w-auto object-contain print:opacity-100" 
               referrerPolicy="no-referrer"
             />
           </div>
@@ -1531,7 +1531,7 @@ function GuiaRemisionPrintSheet({
             <img 
               src="/logo-juditex.png" 
               alt="Juditex" 
-              className="h-16 w-auto shrink-0 object-contain print:opacity-100" 
+              className="h-24 w-auto shrink-0 object-contain print:opacity-100" 
               referrerPolicy="no-referrer"
             />
             <div className="space-y-1">
