@@ -861,7 +861,7 @@ function PaginatedSinglePrintPage({
   return (
     <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text p-8 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 print-page print:border-none print:shadow-none print:p-0 print:my-0 print:bg-white print:min-h-[296mm] flex flex-col justify-between">
       <div>
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-1">
           <div className="flex flex-col">
             <h1 className="text-2xl font-display text-app-primary">{title}</h1>
           </div>
@@ -869,7 +869,7 @@ function PaginatedSinglePrintPage({
             <img 
               src="/logo-juditex.png" 
               alt="Juditex" 
-              className="h-18 w-auto object-contain print:opacity-100" 
+              className="h-24 w-auto object-contain print:opacity-100" 
               referrerPolicy="no-referrer"
             />
           </div>
@@ -1013,7 +1013,7 @@ function SinglePrintPage({
   return (
     <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text p-8 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 min-h-[296mm] flex flex-col justify-between print-page print:border-none print:shadow-none print:p-0 print:my-0 print:bg-white">
       <div>
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-1">
           <div className="flex flex-col">
             <h1 className="text-2xl font-display text-app-primary">{title}</h1>
           </div>
@@ -1024,7 +1024,7 @@ function SinglePrintPage({
             <img 
               src="/logo-juditex.png" 
               alt="Juditex" 
-              className="h-18 w-auto object-contain print:opacity-100" 
+              className="h-24 w-auto object-contain print:opacity-100" 
               referrerPolicy="no-referrer"
             />
           </div>
@@ -1511,23 +1511,23 @@ function GuiaRemisionPrintSheet({
       
       <div>
         {/* Top Header: Issuer left, RUC Box right */}
-        <div className="flex justify-between items-start gap-4 mb-6">
+        <div className="flex justify-between items-start gap-4 mb-1">
           
           {/* Issuer Details */}
-          <div className="flex-1 flex gap-3.5 items-center">
+          <div className="flex-1 flex gap-4 items-center">
             {/* Styled Circle with J Green Logo */}
             <img 
               src="/logo-juditex.png" 
               alt="Juditex" 
-              className="h-24 w-auto shrink-0 object-contain print:opacity-100" 
+              className="h-32 sm:h-36 w-auto shrink-0 object-contain print:opacity-100 max-h-[140px]" 
               referrerPolicy="no-referrer"
             />
             <div className="space-y-1">
-              <h1 className="text-[#1B5E20] text-base font-black tracking-tight leading-none uppercase">DEALER TEXTIL SRL</h1>
-              <p className="text-[8px] font-bold text-gray-500 uppercase tracking-wide leading-tight">
+              <h1 className="text-[#1B5E20] text-lg font-black tracking-tight leading-none uppercase">DEALER TEXTIL SRL</h1>
+              <p className="text-[8.5px] font-bold text-gray-500 uppercase tracking-wide leading-tight">
                 CALLE IGNACIO COSSIO NRO. 1363 (UBICADO FRENTE A UN PARQUE) LIMA - LIMA - LA VICTORIA
               </p>
-              <p className="text-[7.5px] font-semibold text-gray-400 uppercase leading-none mt-1">
+              <p className="text-[8px] font-semibold text-gray-400 uppercase leading-none mt-1">
                 Moda con estilo sostenible • Almacén Central de Distribución
               </p>
             </div>

@@ -38,9 +38,9 @@ async function addBrandedHeader(
   const logoBase64 = await getLogoBase64();
 
   // Set generous row heights for title area
-  worksheet.getRow(1).height = 26;
-  worksheet.getRow(2).height = 30;
-  worksheet.getRow(3).height = 22;
+  worksheet.getRow(1).height = 28;
+  worksheet.getRow(2).height = 32;
+  worksheet.getRow(3).height = 26;
   worksheet.getRow(4).height = 12;
 
   if (logoBase64) {
@@ -54,8 +54,8 @@ async function addBrandedHeader(
       });
 
       worksheet.addImage(imageId, {
-        tl: { col: 0.08, row: 0.12 },
-        ext: { width: 220, height: 68 },
+        tl: { col: 0.05, row: 0.08 },
+        ext: { width: 230, height: 82 },
         editAs: 'oneCell'
       });
     } catch (e) {
