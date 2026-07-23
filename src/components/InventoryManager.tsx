@@ -3,8 +3,9 @@ import { RollItem, Provider, Article } from '../types';
 import { db, addDoc, updateDoc, deleteDoc } from '../firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
 import InventoryExcelPasteParser from './inventory/InventoryExcelPasteParser';
-import { Search, Filter, Plus, FileSpreadsheet, Info, Wrench, Trash2, ShieldAlert, ArrowDownUp, X, CheckCircle, RefreshCw } from 'lucide-react';
+import { Search, Filter, Plus, FileSpreadsheet, Info, Wrench, Trash2, ShieldAlert, ArrowDownUp, X, CheckCircle, RefreshCw, Package } from 'lucide-react';
 import { exportInventoryToExcel } from '../utils/excelExport';
+import AlertBanner from './AlertBanner';
 
 interface InventoryManagerProps {
   inventory: RollItem[];
@@ -378,15 +379,12 @@ export default function InventoryManager({
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-red-800 dark:text-red-400 rounded text-xs font-semibold flex justify-between items-center animate-fade-in no-print">
-          <span>{error}</span>
-          <button 
-            onClick={() => setError(null)} 
-            className="text-red-800 dark:text-red-400 hover:text-red-950 dark:hover:text-red-200 font-extrabold px-2 cursor-pointer"
-          >
-            ×
-          </button>
-        </div>
+        <AlertBanner
+          type="error"
+          message={error}
+          onClose={() => setError(null)}
+          id="alert-inv-error"
+        />
       )}
 
       {/* Conditionally rendered register/add form */}
@@ -863,12 +861,56 @@ export default function InventoryManager({
                   <td
                     colSpan={
                       10 +
-                      (filteredInventory.some(item => item.width && item.width.trim() !== '') ? 1 : 0) +
-                      (filteredInventory.some(item => item.weight && item.weight.trim() !== '') ? 1 : 0)
+                      (inventory.some(item => item.width && item.width.trim() !== '') ? 1 : 0) +
+                      (inventory.some(item => item.weight && item.weight.trim() !== '') ? 1 : 0)
                     }
-                    className="p-12 text-center text-app-text/50 font-medium"
+                    className="p-12 text-center"
                   >
-                    No se encontraron rollos de tela con los criterios seleccionados.
+                    <div className="max-w-sm mx-auto flex flex-col items-center justify-center text-center">
+                      <div className="w-16 h-16 rounded-full bg-app-bg border border-app-border flex items-center justify-center text-app-primary mb-3 shadow-xs">
+                        {inventory.length === 0 ? (
+                          <Package size={32} />
+                        ) : (
+                          <Search size={32} className="text-app-text/40" />
+                        )}
+                      </div>
+                      <h4 className="text-sm font-bold text-app-text uppercase tracking-wider mb-1">
+                        {inventory.length === 0
+                          ? 'Inventario de rollos vacío'
+                          : 'Sin resultados en el inventario'}
+                      </h4>
+                      <p className="text-xs text-app-text/60 font-medium leading-relaxed mb-4">
+                        {inventory.length === 0
+                          ? 'No hay rollos de tela registrados en la base de datos. Comience registrando el ingreso del primer rollo.'
+                          : 'No se encontraron rollos de tela con los filtros de búsqueda seleccionados.'}
+                      </p>
+                      {inventory.length === 0 ? (
+                        <button
+                          onClick={() => {
+                            setShowAddForm(true);
+                            if (providers.length > 0) handleProviderChange(providers[0].id);
+                          }}
+                          className="px-4 py-2 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-xs flex items-center gap-2 transition shadow-xs uppercase tracking-wider cursor-pointer"
+                        >
+                          <Plus size={14} />
+                          Registrar primer rollo
+                        </button>
+                      ) : (searchTerm || filterProviderId !== 'all' || filterArticleId !== 'all' || filterStatus !== 'all' || startDate || endDate) ? (
+                        <button
+                          onClick={() => {
+                            setSearchTerm('');
+                            setFilterProviderId('all');
+                            setFilterArticleId('all');
+                            setFilterStatus('all');
+                            setStartDate('');
+                            setEndDate('');
+                          }}
+                          className="px-3 py-1.5 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded text-xs font-bold transition uppercase tracking-wider cursor-pointer"
+                        >
+                          Limpiar Filtros
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -945,23 +987,25 @@ export default function InventoryManager({
                               </button>
                             </form>
                           ) : (
-                            <div className="flex gap-1 no-print">
+                            <div className="flex justify-end items-center gap-1.5 no-print">
                               <button
                                 onClick={() => {
                                   setAdjustingId(item.id);
                                   setAdjustedMeters(item.currentMeters);
                                 }}
-                                className="p-1 bg-app-surface hover:bg-app-bg text-app-text/50 hover:text-app-text border border-app-border rounded transition cursor-pointer"
-                                title="Ajustar metros"
+                                className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-text border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+                                title="Ajustar metros del rollo"
                               >
                                 <Wrench size={12} />
+                                <span className="hidden md:inline">Ajustar</span>
                               </button>
                               <button
                                 onClick={() => initiateDeleteRoll(item)}
-                                className="p-1 bg-app-surface hover:bg-app-bg text-app-text/50 hover:text-red-600 border border-app-border rounded transition cursor-pointer"
-                                title="Eliminar Rollo"
+                                className="px-2 py-1 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 hover:bg-red-600 hover:text-white rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-2xs"
+                                title="Eliminar Rollo del inventario"
                               >
                                 <Trash2 size={12} />
+                                <span className="hidden md:inline">Eliminar</span>
                               </button>
                             </div>
                           )}
@@ -1002,26 +1046,31 @@ export default function InventoryManager({
             {/* Content */}
             <div className="p-6">
               {deleteRollSuccess ? (
-                <div className="text-center py-3">
-                  <div className="inline-flex items-center justify-center bg-app-bg text-app-secondary p-3 rounded mb-3">
-                    <CheckCircle size={24} />
-                  </div>
-                  <p className="text-xs font-bold text-app-text">{deleteRollSuccess}</p>
-                </div>
+                <AlertBanner
+                  type="success"
+                  message={deleteRollSuccess}
+                />
               ) : (
                 <div className="space-y-4">
                   <p className="text-xs font-medium leading-relaxed text-app-text/80">
                     ¿Está totalmente seguro de que desea eliminar permanentemente el rollo de almacén <strong className="text-app-text bg-app-bg px-1.5 py-0.5 rounded font-mono font-bold">{deleteTargetRoll.rollNumber}</strong>?
                   </p>
                   
-                  <div className="bg-red-50/50 dark:bg-red-950/10 border border-red-200/80 dark:border-red-900/30 rounded p-3 text-[10px] text-red-900 dark:text-red-300 font-medium leading-normal">
-                    ⚠️ <strong>ATENCIÓN ALMACÉN:</strong> Esta acción borrará permanentemente la existencia de este rollo del inventario activo y se registrará un movimiento contable de ajuste negativo en las bitácoras.
-                  </div>
+                  <AlertBanner
+                    type="warning"
+                    message={
+                      <span>
+                        <strong>ATENCIÓN ALMACÉN:</strong> Esta acción borrará permanentemente la existencia de este rollo del inventario activo y se registrará un movimiento contable de ajuste negativo en las bitácoras.
+                      </span>
+                    }
+                  />
 
                   {deleteRollError && (
-                    <div className="bg-red-50 dark:bg-red-950/10 border border-red-200 dark:border-red-900/40 p-3 text-[11px] text-red-800 dark:text-red-400 font-semibold font-mono leading-tight">
-                      ERROR: {deleteRollError}
-                    </div>
+                    <AlertBanner
+                      type="error"
+                      message={deleteRollError}
+                      onClose={() => setDeleteRollError(null)}
+                    />
                   )}
                 </div>
               )}
@@ -1087,21 +1136,20 @@ export default function InventoryManager({
             {/* Content */}
             <div className="p-6">
               {bulkDeleteSuccess ? (
-                <div className="text-center py-3">
-                  <div className="inline-flex items-center justify-center bg-app-bg text-app-secondary p-3 rounded mb-3">
-                    <CheckCircle size={24} />
-                  </div>
-                  <p className="text-xs font-bold text-app-text">{bulkDeleteSuccess}</p>
-                </div>
+                <AlertBanner
+                  type="success"
+                  message={bulkDeleteSuccess}
+                />
               ) : bulkDeleteResults ? (
                 <div className="space-y-4">
-                  <div className="bg-yellow-50 dark:bg-yellow-950/15 border border-yellow-200 dark:border-yellow-900/30 rounded p-3 text-[11px] text-yellow-800 dark:text-yellow-400 font-medium">
-                    ⚠️ Se completó el proceso de eliminación masiva:
-                    <ul className="list-disc pl-4 mt-1.5 space-y-0.5 font-semibold">
-                      <li>Eliminados con éxito: <strong>{bulkDeleteResults.successCount}</strong></li>
-                      <li>No se pudieron eliminar: <strong>{bulkDeleteResults.failureCount}</strong></li>
-                    </ul>
-                  </div>
+                  <AlertBanner
+                    type="warning"
+                    message={
+                      <span>
+                        Se completó el proceso de eliminación masiva. Eliminados: <strong>{bulkDeleteResults.successCount}</strong>, Errores: <strong>{bulkDeleteResults.failureCount}</strong>.
+                      </span>
+                    }
+                  />
                   <button
                     onClick={() => {
                       setIsBulkDeleteOpen(false);
@@ -1133,14 +1181,21 @@ export default function InventoryManager({
                     </div>
                   </div>
                   
-                  <div className="bg-red-50/50 dark:bg-red-950/10 border border-red-200/80 dark:border-red-900/30 rounded p-3 text-[10px] text-red-900 dark:text-red-300 font-medium leading-normal">
-                    ⚠️ <strong>ATENCIÓN ALMACÉN:</strong> Esta acción es irreversible. Los rollos eliminados ya no podrán ser detectados como 'previamente usados' si se vuelve a escanear o escribir su número en el futuro.
-                  </div>
+                  <AlertBanner
+                    type="warning"
+                    message={
+                      <span>
+                        <strong>ATENCIÓN ALMACÉN:</strong> Esta acción es irreversible. Los rollos eliminados ya no podrán ser detectados como 'previamente usados' si se vuelve a escanear o escribir su número en el futuro.
+                      </span>
+                    }
+                  />
 
                   {bulkDeleteError && (
-                    <div className="bg-red-50 dark:bg-red-950/10 border border-red-200 dark:border-red-900/40 p-3 text-[11px] text-red-800 dark:text-red-400 font-semibold font-mono leading-tight">
-                      ERROR: {bulkDeleteError}
-                    </div>
+                    <AlertBanner
+                      type="error"
+                      message={bulkDeleteError}
+                      onClose={() => setBulkDeleteError(null)}
+                    />
                   )}
                 </div>
               )}

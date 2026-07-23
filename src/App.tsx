@@ -38,6 +38,7 @@ import PackingListForm from './components/PackingListForm';
 import PackingListHistory from './components/PackingListHistory';
 import InventoryManager from './components/InventoryManager';
 import CatalogManager from './components/CatalogManager';
+import AlertBanner from './components/AlertBanner';
 import PrintPackingList from './components/PrintPackingList';
 import QuickSearchPalette from './components/QuickSearchPalette';
 
@@ -404,6 +405,7 @@ export default function App() {
               setActiveTab('generate');
             }}
             initialSearchTerm={historySearchQuery}
+            onCreateNew={() => setActiveTab('generate')}
           />
         );
       case 'inventory':
@@ -797,9 +799,10 @@ export default function App() {
             </div>
             
             <div className="p-6 space-y-4">
-              <p className="text-xs font-semibold leading-relaxed text-app-text whitespace-pre-line">
-                {syncResultModal.message}
-              </p>
+              <AlertBanner
+                type={syncResultModal.success ? "success" : "error"}
+                message={syncResultModal.message}
+              />
               
               {syncResultModal.success && syncResultModal.counts && (
                 <div className="bg-app-bg border border-app-border rounded-lg p-4 text-[11px] leading-relaxed font-mono space-y-1.5">

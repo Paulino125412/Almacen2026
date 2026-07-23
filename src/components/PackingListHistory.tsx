@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PackingList, Client, Seller, Provider, Article, RollItem } from '../types';
 import { db, deleteDoc, updateDoc } from '../firebase';
 import { doc } from 'firebase/firestore';
-import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, Copy, FileSpreadsheet, MessageCircle } from 'lucide-react';
+import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, Copy, FileSpreadsheet, MessageCircle, Plus } from 'lucide-react';
 import { exportPackingListSummaryToExcel, exportPackingListFullDetailsToExcel, exportSinglePackingListToExcel } from '../utils/excelExport';
+import AlertBanner from './AlertBanner';
 
 interface PackingListHistoryProps {
   packingLists: PackingList[];
@@ -17,6 +18,7 @@ interface PackingListHistoryProps {
   onEdit: (pl: PackingList) => void;
   onDuplicate: (pl: PackingList) => void;
   initialSearchTerm?: string;
+  onCreateNew?: () => void;
 }
 
 export default function PackingListHistory({
@@ -30,7 +32,8 @@ export default function PackingListHistory({
   onSelectPrint,
   onEdit,
   onDuplicate,
-  initialSearchTerm
+  initialSearchTerm,
+  onCreateNew
 }: PackingListHistoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -210,6 +213,24 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
 
   return (
     <div className="space-y-6">
+      {deleteSuccess && !deleteTarget && (
+        <AlertBanner
+          type="success"
+          message={deleteSuccess}
+          onClose={() => setDeleteSuccess(null)}
+          id="alert-pl-history-success"
+        />
+      )}
+
+      {deleteError && !deleteTarget && (
+        <AlertBanner
+          type="error"
+          message={deleteError}
+          onClose={() => setDeleteError(null)}
+          id="alert-pl-history-error"
+        />
+      )}
+
       {/* Search and Filters - Serious High End UI */}
       <div className="bg-app-surface border border-app-border rounded-lg p-5 shadow-xs">
         <h3 className="text-xs font-bold text-app-text/50 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -393,9 +414,48 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
             <tbody className="divide-y divide-app-border/40 text-xs text-app-text">
               {filteredLists.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-12 text-center text-app-text/50 font-medium">
-                    <FileText size={24} className="mx-auto text-app-text/45 mb-2" />
-                    No se encontraron documentos de packing list con los filtros de búsqueda aplicados.
+                  <td colSpan={9} className="p-12 text-center">
+                    <div className="max-w-sm mx-auto flex flex-col items-center justify-center text-center">
+                      <div className="w-16 h-16 rounded-full bg-app-bg border border-app-border flex items-center justify-center text-app-primary mb-3 shadow-xs">
+                        {packingLists.length === 0 ? (
+                          <FileText size={32} />
+                        ) : (
+                          <Search size={32} className="text-app-text/40" />
+                        )}
+                      </div>
+                      <h4 className="text-sm font-bold text-app-text uppercase tracking-wider mb-1">
+                        {packingLists.length === 0
+                          ? 'No hay Packing Lists registrados'
+                          : 'Sin resultados para la búsqueda'}
+                      </h4>
+                      <p className="text-xs text-app-text/60 font-medium leading-relaxed mb-4">
+                        {packingLists.length === 0
+                          ? 'Aún no se ha generado ningún despacho. Comience creando el primer Packing List para registrar los envíos.'
+                          : 'No se encontraron documentos de packing list con los filtros de búsqueda aplicados.'}
+                      </p>
+                      {packingLists.length === 0 && onCreateNew ? (
+                        <button
+                          onClick={onCreateNew}
+                          className="px-4 py-2 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-xs flex items-center gap-2 transition shadow-xs uppercase tracking-wider cursor-pointer"
+                        >
+                          <Plus size={14} />
+                          Crear primer Packing List
+                        </button>
+                      ) : (searchTerm || filterType !== 'all' || startDate || endDate || showOnlyNoGuide) ? (
+                        <button
+                          onClick={() => {
+                            setSearchTerm('');
+                            setFilterType('all');
+                            setStartDate('');
+                            setEndDate('');
+                            setShowOnlyNoGuide(false);
+                          }}
+                          className="px-3 py-1.5 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded text-xs font-bold transition uppercase tracking-wider cursor-pointer"
+                        >
+                          Limpiar Filtros
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -457,49 +517,61 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
                       <td className="p-4 text-center font-mono font-bold text-app-text bg-app-bg/10">{pl.items.length}</td>
                       <td className="p-4 text-right font-mono font-bold text-app-text">{totalMeters.toFixed(2)} m</td>
                       <td className="p-4 text-right pr-5">
-                        <div className="flex justify-end items-center gap-1">
+                        <div className="flex justify-end items-center gap-1.5 flex-wrap">
                           <button
                             onClick={() => onSelectPrint(pl)}
                             className="px-2.5 py-1 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-[10px] flex items-center gap-1 transition uppercase tracking-wider shadow-xs cursor-pointer"
                             id={`btn-view-pl-${pl.packingListNo}`}
+                            title="Imprimir o exportar PDF"
                           >
                             <Eye size={12} />
-                            Imprimir / PDF
+                            <span className="hidden sm:inline">Imprimir / PDF</span>
+                            <span className="sm:hidden">PDF</span>
                           </button>
+
                           <button
                             onClick={() => handleShareWhatsApp(pl)}
-                            className="p-1 bg-app-surface hover:bg-[#25D366]/10 text-app-text/60 hover:text-[#25D366] border border-app-border rounded transition cursor-pointer flex items-center justify-center"
+                            className="px-2 py-1 bg-app-surface hover:bg-[#25D366]/10 text-app-text/70 hover:text-[#25D366] border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
                             title="Compartir por WhatsApp"
                           >
                             <MessageCircle size={12} />
+                            <span className="hidden md:inline">WhatsApp</span>
                           </button>
+
                           <button
                             onClick={() => onEdit(pl)}
-                            className="p-1 bg-app-surface hover:bg-app-bg text-app-text/60 hover:text-app-primary border border-app-border rounded transition cursor-pointer"
+                            className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-primary border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
                             title="Modificar / Editar Packing List"
                           >
                             <Edit2 size={12} />
+                            <span className="hidden md:inline">Editar</span>
                           </button>
+
                           <button
                             onClick={() => onDuplicate(pl)}
-                            className="p-1 bg-app-surface hover:bg-app-bg text-app-text/60 hover:text-app-text border border-app-border rounded transition cursor-pointer"
+                            className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-text border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
                             title="Duplicar / Clonar Packing List"
                           >
                             <Copy size={12} />
+                            <span className="hidden md:inline">Clonar</span>
                           </button>
+
                           <button
                             onClick={() => handleExportSinglePL(pl)}
-                            className="p-1 bg-app-surface hover:bg-app-bg text-app-text/60 hover:text-app-secondary border border-app-border rounded transition cursor-pointer"
+                            className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-secondary border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
                             title="Exportar este Packing List a Excel"
                           >
                             <FileSpreadsheet size={12} />
+                            <span className="hidden md:inline">Excel</span>
                           </button>
+
                           <button
                             onClick={() => initiateDelete(pl)}
-                            className="p-1 bg-app-surface hover:bg-app-bg text-app-text/45 hover:text-red-600 border border-app-border rounded transition cursor-pointer"
+                            className="px-2 py-1 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 hover:bg-red-600 hover:text-white rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-2xs"
                             title="Eliminar registro permanente"
                           >
                             <Trash2 size={12} />
+                            <span className="hidden md:inline">Eliminar</span>
                           </button>
                         </div>
                       </td>
@@ -538,26 +610,31 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
             {/* Content */}
             <div className="p-6">
               {deleteSuccess ? (
-                <div className="text-center py-3">
-                  <div className="inline-flex items-center justify-center bg-app-bg text-app-secondary p-3 rounded mb-3">
-                    <CheckCircle size={24} />
-                  </div>
-                  <p className="text-xs font-bold text-app-text">{deleteSuccess}</p>
-                </div>
+                <AlertBanner
+                  type="success"
+                  message={deleteSuccess}
+                />
               ) : (
                 <div className="space-y-4">
                   <p className="text-xs font-medium leading-relaxed text-app-text/80">
                     ¿Está totalmente seguro de que desea eliminar permanentemente el packing list <strong className="text-app-text bg-app-bg px-1.5 py-0.5 rounded font-mono font-bold">{deleteTarget.packingListNo}</strong>?
                   </p>
                   
-                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded p-3 text-[10px] text-amber-900 dark:text-amber-300 font-medium leading-normal">
-                    ⚠️ <strong>AVISO DE EXCLUSIÓN:</strong> Esta acción borrará permanentemente el despacho de la base de datos y no se podrá recuperar. Asegúrese de que no afecte los reportes contables ni el inventario de rollos vinculados.
-                  </div>
+                  <AlertBanner
+                    type="warning"
+                    message={
+                      <span>
+                        <strong>AVISO DE EXCLUSIÓN:</strong> Esta acción borrará permanentemente el despacho de la base de datos y no se podrá recuperar. Asegúrese de que no afecte los reportes contables ni el inventario de rollos vinculados.
+                      </span>
+                    }
+                  />
 
                   {deleteError && (
-                    <div className="bg-red-50 dark:bg-red-950/10 border border-red-200 dark:border-red-900/40 p-3 text-[11px] text-red-800 dark:text-red-400 font-semibold font-mono whitespace-pre-wrap leading-tight">
-                      ERROR: {deleteError}
-                    </div>
+                    <AlertBanner
+                      type="error"
+                      message={deleteError}
+                      onClose={() => setDeleteError(null)}
+                    />
                   )}
                 </div>
               )}

@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Client, Seller, Provider, Article, RollItem, PackingList, PackingListItem } from '../types';
 import { db, addDoc, updateDoc } from '../firebase';
 import { collection, doc } from 'firebase/firestore';
-import { Plus, Trash2, Calendar, User, ShoppingBag, CheckCircle2, ChevronRight, Hash, Ruler, X } from 'lucide-react';
+import { Plus, Trash2, Calendar, User, ShoppingBag, CheckCircle2, ChevronRight, Hash, Ruler, X, FileText, Layers, Truck } from 'lucide-react';
 import SearchableCombobox from './SearchableCombobox';
 import { FormRollEntry, FormArticleGroup } from './packing-list-form/types';
 import { resolveColumnsForText } from './packing-list-form/ExcelPasteParser';
 import ClientSellerSelector from './packing-list-form/ClientSellerSelector';
 import ArticleGroupSection from './packing-list-form/ArticleGroupSection';
+import AlertBanner from './AlertBanner';
 
 interface PackingListFormProps {
   clients: Client[];
@@ -1303,111 +1304,127 @@ export default function PackingListForm({
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 text-red-800 rounded-lg text-sm mb-4">
-          {error}
-        </div>
+        <AlertBanner
+          type="error"
+          message={error}
+          onClose={() => setError(null)}
+          className="mb-4"
+          id="alert-pl-error"
+        />
       )}
 
       {success && (
-        <div className="p-3 bg-app-bg border border-app-border text-app-text rounded-lg text-sm mb-4 flex items-center gap-2">
-          <CheckCircle2 size={16} className="text-app-secondary" />
-          {success}
-        </div>
+        <AlertBanner
+          type="success"
+          message={success}
+          onClose={() => setSuccess(null)}
+          className="mb-4"
+          id="alert-pl-success"
+        />
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Document metadata info panel */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-app-bg/50 p-4 border border-app-border rounded-xl">
-          <div>
-            <label className="block text-xs font-bold text-app-text/80 mb-1">Nº de Packing List *</label>
-            <input
-              type="text"
-              required
-              value={packingListNo}
-              onChange={e => setPackingListNo(e.target.value)}
-              placeholder="Ej. PL-00234"
-              className="w-full px-3 py-2 border border-app-border rounded-lg text-sm font-mono font-bold text-app-text focus:ring-2 focus:ring-app-primary bg-app-surface"
-              id="input-pl-no"
-            />
+        {/* SECCIÓN 1: DATOS DEL DESPACHO */}
+        <div className="p-5 border border-app-border rounded-xl bg-app-bg/30 space-y-4">
+          <div className="flex items-center gap-2 pb-2.5 border-b border-app-border">
+            <div className="p-1.5 rounded-md bg-app-primary/10 text-app-primary">
+              <FileText size={18} />
+            </div>
+            <h3 className="text-xs font-bold text-app-text uppercase tracking-wider">
+              1. Datos del Despacho
+            </h3>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-app-text/80 mb-1">Fecha de Despacho *</label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-2.5 text-app-text/45" size={16} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-app-text/80 mb-1">Nº de Packing List *</label>
               <input
-                type="date"
+                type="text"
                 required
-                value={docDate}
-                onChange={e => setDocDate(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-app-border rounded-lg text-sm focus:ring-2 focus:ring-app-primary bg-app-surface text-app-text"
+                value={packingListNo}
+                onChange={e => setPackingListNo(e.target.value)}
+                placeholder="Ej. PL-00234"
+                className="w-full px-3 py-2 border border-app-border rounded-lg text-sm font-mono font-bold text-app-text focus:ring-2 focus:ring-app-primary bg-app-surface"
+                id="input-pl-no"
               />
             </div>
+
+            <div>
+              <label className="block text-xs font-bold text-app-text/80 mb-1">Fecha de Despacho *</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-2.5 text-app-text/45" size={16} />
+                <input
+                  type="date"
+                  required
+                  value={docDate}
+                  onChange={e => setDocDate(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-app-border rounded-lg text-sm focus:ring-2 focus:ring-app-primary bg-app-surface text-app-text"
+                />
+              </div>
+            </div>
+
+            <ClientSellerSelector
+              clientId={clientId}
+              setClientId={handleClientChange}
+              clients={clients}
+              onAddNewClient={handleAddNewClient}
+              sellerId={sellerId}
+              setSellerId={setSellerId}
+              sellers={sellers}
+              onAddNewSeller={handleAddNewSeller}
+              formProviderId={formProviderId}
+              setFormProviderId={setFormProviderId}
+              providers={providers}
+              onAddNewProvider={handleAddNewProvider}
+            />
           </div>
 
-          <ClientSellerSelector
-            clientId={clientId}
-            setClientId={handleClientChange}
-            clients={clients}
-            onAddNewClient={handleAddNewClient}
-            sellerId={sellerId}
-            setSellerId={setSellerId}
-            sellers={sellers}
-            onAddNewSeller={handleAddNewSeller}
-            formProviderId={formProviderId}
-            setFormProviderId={setFormProviderId}
-            providers={providers}
-            onAddNewProvider={handleAddNewProvider}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-app-border/40">
+            <div className="md:col-span-1">
+              <label className="block text-xs font-bold text-app-text/80 mb-1">Número de Guía</label>
+              <input
+                type="text"
+                value={guideNumber}
+                onChange={e => setGuideNumber(e.target.value)}
+                placeholder="Ej. G001-000234 (Opcional)"
+                className="w-full px-3 py-2 border border-app-border rounded-lg text-sm text-app-text focus:ring-2 focus:ring-app-primary bg-app-surface font-mono"
+                id="input-pl-guide"
+              />
+              <p className="text-[11px] text-app-text/50 mt-1 leading-snug">
+                Opcional. Puedes completarlo después si aún no tienes el número.
+              </p>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-app-text/80 mb-1">Dirección de Despacho</label>
+              <input
+                type="text"
+                value={dispatchAddress}
+                onChange={e => setDispatchAddress(e.target.value)}
+                placeholder="Dirección donde se entregará la mercadería (Sugerida del Cliente, Editable)"
+                className="w-full px-3 py-2 border border-app-border rounded-lg text-sm text-app-text focus:ring-2 focus:ring-app-primary bg-app-surface"
+                id="input-pl-dispatch-address"
+              />
+              <p className="text-[11px] text-app-text/50 mt-1 leading-snug">
+                Se autocompleta con la dirección del cliente, pero puedes editarla para este despacho en particular.
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Nuevos campos: Número de Guía y Dirección de Despacho */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-app-bg/50 p-4 border border-app-border rounded-xl mt-4">
-          <div className="md:col-span-1">
-            <label className="block text-xs font-bold text-app-text/80 mb-1">Número de Guía</label>
-            <input
-              type="text"
-              value={guideNumber}
-              onChange={e => setGuideNumber(e.target.value)}
-              placeholder="Ej. G001-000234 (Opcional)"
-              className="w-full px-3 py-2 border border-app-border rounded-lg text-sm text-app-text focus:ring-2 focus:ring-app-primary bg-app-surface font-mono"
-              id="input-pl-guide"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-xs font-bold text-app-text/80 mb-1">Dirección de Despacho</label>
-            <input
-              type="text"
-              value={dispatchAddress}
-              onChange={e => setDispatchAddress(e.target.value)}
-              placeholder="Dirección donde se entregará la mercadería (Sugerida del Cliente, Editable)"
-              className="w-full px-3 py-2 border border-app-border rounded-lg text-sm text-app-text focus:ring-2 focus:ring-app-primary bg-app-surface"
-              id="input-pl-dispatch-address"
-            />
-          </div>
-        </div>
+        {/* Divisor Visual Sutil */}
+        <hr className="border-app-border/60 my-6" />
 
-        {/* Notas / Observaciones */}
-        {packingType === 'corte' && (
-          <div className="bg-app-bg/50 p-4 border border-app-border rounded-xl">
-            <label className="block text-xs font-bold text-app-text/80 mb-1">Notas / Observaciones (Se imprimirá en el Packing List)</label>
-            <textarea
-              placeholder="Escriba alguna nota, observación o instrucción especial para este packing list..."
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              rows={2}
-              className="w-full px-3 py-2 border border-app-border rounded-lg text-sm bg-app-surface focus:ring-2 focus:ring-app-primary placeholder:text-app-text/45 text-app-text"
-              id="input-pl-notes"
-            />
-          </div>
-        )}
-
-        {/* Dynamic Nested Articles Sections */}
-        <div className="space-y-6">
-          <div className="flex justify-between items-center border-b border-app-border pb-2 gap-2 flex-wrap">
-            <h3 className="text-xs font-black text-app-text uppercase tracking-widest">
-              Artículos en el Despacho
-            </h3>
+        {/* SECCIÓN 2: ARTÍCULOS Y ROLLOS */}
+        <div className="p-5 border border-app-border rounded-xl bg-app-bg/30 space-y-4">
+          <div className="flex flex-wrap justify-between items-center pb-2.5 border-b border-app-border gap-2">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-md bg-app-primary/10 text-app-primary">
+                <Layers size={18} />
+              </div>
+              <h3 className="text-xs font-bold text-app-text uppercase tracking-wider">
+                2. Artículos y Rollos
+              </h3>
+            </div>
             <button
               type="button"
               onClick={handleAddArticleGroup}
@@ -1419,29 +1436,60 @@ export default function PackingListForm({
             </button>
           </div>
 
-          {articleGroups.map((group, index) => (
-            <ArticleGroupSection
-              key={group.id}
-              group={group}
-              index={index}
-              articles={articles}
-              providers={providers}
-              packingType={packingType}
-              availableRolls={availableRolls}
-              allInventory={inventory}
-              packingLists={packingLists}
-              formProviderId={formProviderId}
-              onRemove={handleRemoveArticleGroup}
-              onGroupFieldChange={handleGroupFieldChange}
-              onRollFieldChange={handleRollFieldChange}
-              onAddRoll={handleAddRollToGroup}
-              onRemoveRoll={handleRemoveRollFromGroup}
-              onProcessUnifiedInput={handleProcessUnifiedInput}
-              onRollKeyDown={handleRollKeyDown}
-              onAddNewArticle={handleAddNewArticle}
-              onAddScannedRoll={handleAddScannedRollToGroup}
+          <div className="space-y-6">
+            {articleGroups.map((group, index) => (
+              <ArticleGroupSection
+                key={group.id}
+                group={group}
+                index={index}
+                articles={articles}
+                providers={providers}
+                packingType={packingType}
+                availableRolls={availableRolls}
+                allInventory={inventory}
+                packingLists={packingLists}
+                formProviderId={formProviderId}
+                onRemove={handleRemoveArticleGroup}
+                onGroupFieldChange={handleGroupFieldChange}
+                onRollFieldChange={handleRollFieldChange}
+                onAddRoll={handleAddRollToGroup}
+                onRemoveRoll={handleRemoveRollFromGroup}
+                onProcessUnifiedInput={handleProcessUnifiedInput}
+                onRollKeyDown={handleRollKeyDown}
+                onAddNewArticle={handleAddNewArticle}
+                onAddScannedRoll={handleAddScannedRollToGroup}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Divisor Visual Sutil */}
+        <hr className="border-app-border/60 my-6" />
+
+        {/* SECCIÓN 3: NOTAS ADICIONALES */}
+        <div className="p-5 border border-app-border rounded-xl bg-app-bg/30 space-y-4">
+          <div className="flex items-center gap-2 pb-2.5 border-b border-app-border">
+            <div className="p-1.5 rounded-md bg-app-primary/10 text-app-primary">
+              <FileText size={18} />
+            </div>
+            <h3 className="text-xs font-bold text-app-text uppercase tracking-wider">
+              3. Notas Adicionales
+            </h3>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-app-text/80 mb-1">
+              Notas / Observaciones (Se imprimirá en el Packing List)
+            </label>
+            <textarea
+              placeholder="Escriba alguna nota, observación o instrucción especial para este packing list..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border border-app-border rounded-lg text-sm bg-app-surface focus:ring-2 focus:ring-app-primary placeholder:text-app-text/45 text-app-text"
+              id="input-pl-notes"
             />
-          ))}
+          </div>
         </div>
 
         {/* Submit Actions */}

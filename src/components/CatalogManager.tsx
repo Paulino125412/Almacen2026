@@ -4,6 +4,7 @@ import { db, addDoc, updateDoc, deleteDoc } from '../firebase';
 import { collection, doc } from 'firebase/firestore';
 import { Plus, Edit2, Trash2, Users, Briefcase, Truck, Layers, Check, X, Search, FileSpreadsheet } from 'lucide-react';
 import { exportCatalogToExcel } from '../utils/excelExport';
+import AlertBanner from './AlertBanner';
 
 interface CatalogManagerProps {
   clients: Client[];
@@ -474,9 +475,12 @@ export default function CatalogManager({
       <div className="lg:col-span-3 space-y-6">
         {/* Error box */}
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-lg text-sm">
-            {error}
-          </div>
+          <AlertBanner
+            type="error"
+            message={error}
+            onClose={() => setError(null)}
+            id="alert-cat-error"
+          />
         )}
 
         {/* Dynamic Form Card */}
@@ -817,8 +821,39 @@ export default function CatalogManager({
                     return p.name.toLowerCase().includes(q);
                   }).length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-4 text-center text-app-text/45">
-                        {providers.length === 0 ? 'No hay proveedores registrados.' : 'No se encontraron resultados para la búsqueda.'}
+                      <td colSpan={8} className="p-10 text-center">
+                        <div className="max-w-sm mx-auto flex flex-col items-center justify-center text-center">
+                          <div className="w-14 h-14 rounded-full bg-app-bg border border-app-border flex items-center justify-center text-app-primary mb-3 shadow-xs">
+                            {providers.length === 0 ? <Truck size={28} /> : <Search size={28} className="text-app-text/40" />}
+                          </div>
+                          <h4 className="text-xs font-bold text-app-text uppercase tracking-wider mb-1">
+                            {providers.length === 0 ? 'No hay proveedores registrados' : 'Sin resultados de proveedores'}
+                          </h4>
+                          <p className="text-[11px] text-app-text/60 font-medium leading-relaxed mb-3">
+                            {providers.length === 0
+                              ? 'Agregue su primer proveedor comercial para configurar parámetros de lotes, partidas y telas.'
+                              : 'No se encontró ningún proveedor con el término de búsqueda ingresado.'}
+                          </p>
+                          {providers.length === 0 ? (
+                            <button
+                              onClick={() => {
+                                const el = document.getElementById('input-prov-name');
+                                el?.focus();
+                              }}
+                              className="px-3.5 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-xs flex items-center gap-1.5 transition shadow-xs uppercase tracking-wider cursor-pointer"
+                            >
+                              <Plus size={13} />
+                              Agregar primer proveedor
+                            </button>
+                          ) : searchQuery ? (
+                            <button
+                              onClick={() => setSearchQuery('')}
+                              className="px-3 py-1 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded text-xs font-bold transition uppercase tracking-wider cursor-pointer"
+                            >
+                              Limpiar Búsqueda
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -860,20 +895,22 @@ export default function CatalogManager({
                           </span>
                         </td>
                         <td className="p-3 text-right">
-                          <div className="flex justify-end gap-1">
+                          <div className="flex justify-end gap-1.5">
                             <button
                               onClick={() => handleEditInit('providers', p)}
-                              className="p-1.5 hover:bg-app-bg text-app-text/60 hover:text-app-text rounded transition cursor-pointer"
-                              title="Editar"
+                              className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-text border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+                              title="Editar Proveedor"
                             >
-                              <Edit2 size={13} />
+                              <Edit2 size={12} />
+                              <span className="hidden md:inline">Editar</span>
                             </button>
                             <button
                               onClick={() => handleDelete('providers', p.id)}
-                              className="p-1.5 hover:bg-red-50 text-app-text/45 hover:text-red-600 rounded transition cursor-pointer"
-                              title="Eliminar"
+                              className="px-2 py-1 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 hover:bg-red-600 hover:text-white rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-2xs"
+                              title="Eliminar Proveedor"
                             >
-                              <Trash2 size={15} />
+                              <Trash2 size={12} />
+                              <span className="hidden md:inline">Eliminar</span>
                             </button>
                           </div>
                         </td>
@@ -907,8 +944,39 @@ export default function CatalogManager({
                     );
                   }).length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-4 text-center text-app-text/45">
-                        {articles.length === 0 ? 'No hay artículos registrados.' : 'No se encontraron resultados para la búsqueda.'}
+                      <td colSpan={5} className="p-10 text-center">
+                        <div className="max-w-sm mx-auto flex flex-col items-center justify-center text-center">
+                          <div className="w-14 h-14 rounded-full bg-app-bg border border-app-border flex items-center justify-center text-app-primary mb-3 shadow-xs">
+                            {articles.length === 0 ? <Layers size={28} /> : <Search size={28} className="text-app-text/40" />}
+                          </div>
+                          <h4 className="text-xs font-bold text-app-text uppercase tracking-wider mb-1">
+                            {articles.length === 0 ? 'No hay artículos registrados' : 'Sin resultados de artículos'}
+                          </h4>
+                          <p className="text-[11px] text-app-text/60 font-medium leading-relaxed mb-3">
+                            {articles.length === 0
+                              ? 'Registre las telas y articulos que comercializa para usarlos en los packing lists e inventario.'
+                              : 'No se encontraron telas que coincidan con la búsqueda.'}
+                          </p>
+                          {articles.length === 0 ? (
+                            <button
+                              onClick={() => {
+                                const el = document.getElementById('input-art-name');
+                                el?.focus();
+                              }}
+                              className="px-3.5 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-xs flex items-center gap-1.5 transition shadow-xs uppercase tracking-wider cursor-pointer"
+                            >
+                              <Plus size={13} />
+                              Agregar primer artículo
+                            </button>
+                          ) : searchQuery ? (
+                            <button
+                              onClick={() => setSearchQuery('')}
+                              className="px-3 py-1 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded text-xs font-bold transition uppercase tracking-wider cursor-pointer"
+                            >
+                              Limpiar Búsqueda
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -930,20 +998,22 @@ export default function CatalogManager({
                           <td className="p-3 font-medium text-app-text/90">{prov?.name || 'Proveedor Eliminado'}</td>
                           <td className="p-3 text-xs font-mono text-app-text/60">{a.unit}</td>
                           <td className="p-3 text-right">
-                            <div className="flex justify-end gap-1">
+                            <div className="flex justify-end gap-1.5">
                               <button
                                 onClick={() => handleEditInit('articles', a)}
-                                className="p-1.5 hover:bg-app-bg text-app-text/60 hover:text-app-text rounded transition cursor-pointer"
-                                title="Editar"
+                                className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-text border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+                                title="Editar Artículo"
                               >
-                                <Edit2 size={13} />
+                                <Edit2 size={12} />
+                                <span className="hidden md:inline">Editar</span>
                               </button>
                               <button
                                 onClick={() => handleDelete('articles', a.id)}
-                                className="p-1.5 hover:bg-red-50 text-app-text/45 hover:text-red-600 rounded transition cursor-pointer"
-                                title="Eliminar"
+                                className="px-2 py-1 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 hover:bg-red-600 hover:text-white rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-2xs"
+                                title="Eliminar Artículo"
                               >
-                                <Trash2 size={15} />
+                                <Trash2 size={12} />
+                                <span className="hidden md:inline">Eliminar</span>
                               </button>
                             </div>
                           </td>
@@ -979,8 +1049,39 @@ export default function CatalogManager({
                     );
                   }).length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-4 text-center text-app-text/45">
-                        {clients.length === 0 ? 'No hay clientes registrados.' : 'No se encontraron resultados para la búsqueda.'}
+                      <td colSpan={5} className="p-10 text-center">
+                        <div className="max-w-sm mx-auto flex flex-col items-center justify-center text-center">
+                          <div className="w-14 h-14 rounded-full bg-app-bg border border-app-border flex items-center justify-center text-app-primary mb-3 shadow-xs">
+                            {clients.length === 0 ? <Users size={28} /> : <Search size={28} className="text-app-text/40" />}
+                          </div>
+                          <h4 className="text-xs font-bold text-app-text uppercase tracking-wider mb-1">
+                            {clients.length === 0 ? 'No hay clientes registrados' : 'Sin resultados de clientes'}
+                          </h4>
+                          <p className="text-[11px] text-app-text/60 font-medium leading-relaxed mb-3">
+                            {clients.length === 0
+                              ? 'Cree el registro de su primer cliente para acelerar la emisión de documentos de despacho.'
+                              : 'No se encontraron clientes con los criterios ingresados.'}
+                          </p>
+                          {clients.length === 0 ? (
+                            <button
+                              onClick={() => {
+                                const el = document.getElementById('input-cli-name');
+                                el?.focus();
+                              }}
+                              className="px-3.5 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-xs flex items-center gap-1.5 transition shadow-xs uppercase tracking-wider cursor-pointer"
+                            >
+                              <Plus size={13} />
+                              Agregar primer cliente
+                            </button>
+                          ) : searchQuery ? (
+                            <button
+                              onClick={() => setSearchQuery('')}
+                              className="px-3 py-1 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded text-xs font-bold transition uppercase tracking-wider cursor-pointer"
+                            >
+                              Limpiar Búsqueda
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -1004,20 +1105,22 @@ export default function CatalogManager({
                         </td>
                         <td className="p-3 text-xs text-app-text/60 max-w-xs truncate" title={c.address}>{c.address || '-'}</td>
                         <td className="p-3 text-right">
-                          <div className="flex justify-end gap-1">
+                          <div className="flex justify-end gap-1.5">
                             <button
                               onClick={() => handleEditInit('clients', c)}
-                              className="p-1.5 hover:bg-app-bg text-app-text/60 hover:text-app-text rounded transition cursor-pointer"
-                              title="Editar"
+                              className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-text border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+                              title="Editar Cliente"
                             >
-                              <Edit2 size={13} />
+                              <Edit2 size={12} />
+                              <span className="hidden md:inline">Editar</span>
                             </button>
                             <button
                               onClick={() => handleDelete('clients', c.id)}
-                              className="p-1.5 hover:bg-red-50 text-app-text/45 hover:text-red-600 rounded transition cursor-pointer"
-                              title="Eliminar"
+                              className="px-2 py-1 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 hover:bg-red-600 hover:text-white rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-2xs"
+                              title="Eliminar Cliente"
                             >
-                              <Trash2 size={15} />
+                              <Trash2 size={12} />
+                              <span className="hidden md:inline">Eliminar</span>
                             </button>
                           </div>
                         </td>
@@ -1049,8 +1152,39 @@ export default function CatalogManager({
                     );
                   }).length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="p-4 text-center text-app-text/45">
-                        {sellers.length === 0 ? 'No hay vendedores registrados.' : 'No se encontraron resultados para la búsqueda.'}
+                      <td colSpan={4} className="p-10 text-center">
+                        <div className="max-w-sm mx-auto flex flex-col items-center justify-center text-center">
+                          <div className="w-14 h-14 rounded-full bg-app-bg border border-app-border flex items-center justify-center text-app-primary mb-3 shadow-xs">
+                            {sellers.length === 0 ? <Briefcase size={28} /> : <Search size={28} className="text-app-text/40" />}
+                          </div>
+                          <h4 className="text-xs font-bold text-app-text uppercase tracking-wider mb-1">
+                            {sellers.length === 0 ? 'No hay vendedores registrados' : 'Sin resultados de vendedores'}
+                          </h4>
+                          <p className="text-[11px] text-app-text/60 font-medium leading-relaxed mb-3">
+                            {sellers.length === 0
+                              ? 'Registre al equipo de ventas para asignar responsables en cada emisión de packing list.'
+                              : 'No se encontraron vendedores que coincidan con la búsqueda.'}
+                          </p>
+                          {sellers.length === 0 ? (
+                            <button
+                              onClick={() => {
+                                const el = document.getElementById('input-sel-name');
+                                el?.focus();
+                              }}
+                              className="px-3.5 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-xs flex items-center gap-1.5 transition shadow-xs uppercase tracking-wider cursor-pointer"
+                            >
+                              <Plus size={13} />
+                              Agregar primer vendedor
+                            </button>
+                          ) : searchQuery ? (
+                            <button
+                              onClick={() => setSearchQuery('')}
+                              className="px-3 py-1 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded text-xs font-bold transition uppercase tracking-wider cursor-pointer"
+                            >
+                              Limpiar Búsqueda
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -1068,20 +1202,22 @@ export default function CatalogManager({
                         <td className="p-3 text-xs font-mono text-app-text/90">{s.email || '-'}</td>
                         <td className="p-3 text-xs text-app-text/60">{s.phone || '-'}</td>
                         <td className="p-3 text-right">
-                          <div className="flex justify-end gap-1">
+                          <div className="flex justify-end gap-1.5">
                             <button
                               onClick={() => handleEditInit('sellers', s)}
-                              className="p-1.5 hover:bg-app-bg text-app-text/60 hover:text-app-text rounded transition cursor-pointer"
-                              title="Editar"
+                              className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-text border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+                              title="Editar Vendedor"
                             >
-                              <Edit2 size={13} />
+                              <Edit2 size={12} />
+                              <span className="hidden md:inline">Editar</span>
                             </button>
                             <button
                               onClick={() => handleDelete('sellers', s.id)}
-                              className="p-1.5 hover:bg-red-50 text-app-text/45 hover:text-red-600 rounded transition cursor-pointer"
-                              title="Eliminar"
+                              className="px-2 py-1 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 hover:bg-red-600 hover:text-white rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-2xs"
+                              title="Eliminar Vendedor"
                             >
-                              <Trash2 size={15} />
+                              <Trash2 size={12} />
+                              <span className="hidden md:inline">Eliminar</span>
                             </button>
                           </div>
                         </td>

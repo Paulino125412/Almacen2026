@@ -94,21 +94,26 @@ export default function ArticleGroupSection({
 
         {/* Stock Pick vs Direct Entry */}
         {(packingType === 'nuevo' || packingType === 'rollo') && (
-          <div className="flex bg-app-bg p-1 rounded-lg border border-app-border text-xs md:text-[10px] font-bold w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => onGroupFieldChange(group.id, 'source', 'inventory')}
-              className={`px-3 py-2 md:px-2 md:py-0.5 rounded-md cursor-pointer transition min-h-[38px] md:min-h-0 flex-1 sm:flex-none text-center flex items-center justify-center ${group.source === 'inventory' ? 'bg-app-surface text-app-text shadow-xs' : 'text-app-text/50'}`}
-            >
-              Pick de Almacén (Stock)
-            </button>
-            <button
-              type="button"
-              onClick={() => onGroupFieldChange(group.id, 'source', 'custom')}
-              className={`px-3 py-2 md:px-2 md:py-0.5 rounded-md cursor-pointer transition min-h-[38px] md:min-h-0 flex-1 sm:flex-none text-center flex items-center justify-center ${group.source === 'custom' ? 'bg-app-surface text-app-text shadow-xs' : 'text-app-text/50'}`}
-            >
-              Ingreso Directo
-            </button>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+            <div className="flex bg-app-bg p-1 rounded-lg border border-app-border text-xs md:text-[10px] font-bold w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => onGroupFieldChange(group.id, 'source', 'inventory')}
+                className={`px-3 py-2 md:px-2 md:py-0.5 rounded-md cursor-pointer transition min-h-[38px] md:min-h-0 flex-1 sm:flex-none text-center flex items-center justify-center ${group.source === 'inventory' ? 'bg-app-surface text-app-text shadow-xs' : 'text-app-text/50'}`}
+              >
+                Pick de Almacén (Stock)
+              </button>
+              <button
+                type="button"
+                onClick={() => onGroupFieldChange(group.id, 'source', 'custom')}
+                className={`px-3 py-2 md:px-2 md:py-0.5 rounded-md cursor-pointer transition min-h-[38px] md:min-h-0 flex-1 sm:flex-none text-center flex items-center justify-center ${group.source === 'custom' ? 'bg-app-surface text-app-text shadow-xs' : 'text-app-text/50'}`}
+              >
+                Ingreso Directo
+              </button>
+            </div>
+            <p className="text-[11px] text-app-text/50 font-normal">
+              Inventario: elige un rollo ya registrado. Manual: ingresa los datos libremente.
+            </p>
           </div>
         )}
       </div>
