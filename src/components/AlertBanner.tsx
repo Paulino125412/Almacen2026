@@ -22,20 +22,20 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
 
   const styles = {
     success: {
-      container: 'bg-emerald-50 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300',
-      icon: <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+      container: 'bg-app-success/10 border-app-success/30 text-app-success',
+      icon: <CheckCircle2 size={16} className="text-app-success shrink-0" />
     },
     error: {
-      container: 'bg-red-50 dark:bg-red-950/25 border-red-200 dark:border-red-900/40 text-red-800 dark:text-red-400',
-      icon: <ShieldAlert size={16} className="text-red-600 dark:text-red-400 shrink-0" />
+      container: 'bg-app-error/10 border-app-error/30 text-app-error',
+      icon: <ShieldAlert size={16} className="text-app-error shrink-0" />
     },
     warning: {
-      container: 'bg-amber-50 dark:bg-amber-950/25 border-amber-200 dark:border-amber-900/40 text-amber-800 dark:text-amber-300',
-      icon: <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
+      container: 'bg-app-warning/10 border-app-warning/30 text-app-warning',
+      icon: <AlertCircle size={16} className="text-app-warning shrink-0" />
     },
     info: {
-      container: 'bg-blue-50 dark:bg-blue-950/25 border-blue-200 dark:border-blue-900/40 text-blue-800 dark:text-blue-300',
-      icon: <Info size={16} className="text-blue-600 dark:text-blue-400 shrink-0" />
+      container: 'bg-app-info/10 border-app-info/30 text-app-info',
+      icon: <Info size={16} className="text-app-info shrink-0" />
     }
   };
 

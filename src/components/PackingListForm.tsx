@@ -1463,34 +1463,36 @@ export default function PackingListForm({
           </div>
         </div>
 
-        {/* Divisor Visual Sutil */}
-        <hr className="border-app-border/60 my-6" />
+        {/* SECCIÓN 3: NOTAS ADICIONALES (Solo en Packing List de Corte) */}
+        {packingType === 'corte' && (
+          <>
+            <hr className="border-app-border/60 my-6" />
+            <div className="p-5 border border-app-border rounded-xl bg-app-bg/30 space-y-4">
+              <div className="flex items-center gap-2 pb-2.5 border-b border-app-border">
+                <div className="p-1.5 rounded-md bg-app-primary/10 text-app-primary">
+                  <FileText size={18} />
+                </div>
+                <h3 className="text-xs font-bold text-app-text uppercase tracking-wider">
+                  3. Notas Adicionales
+                </h3>
+              </div>
 
-        {/* SECCIÓN 3: NOTAS ADICIONALES */}
-        <div className="p-5 border border-app-border rounded-xl bg-app-bg/30 space-y-4">
-          <div className="flex items-center gap-2 pb-2.5 border-b border-app-border">
-            <div className="p-1.5 rounded-md bg-app-primary/10 text-app-primary">
-              <FileText size={18} />
+              <div>
+                <label className="block text-xs font-bold text-app-text/80 mb-1">
+                  Notas / Observaciones (Se imprimirá en el Packing List)
+                </label>
+                <textarea
+                  placeholder="Escriba alguna nota, observación o instrucción especial para este packing list..."
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-app-border rounded-lg text-sm bg-app-surface focus:ring-2 focus:ring-app-primary placeholder:text-app-text/45 text-app-text"
+                  id="input-pl-notes"
+                />
+              </div>
             </div>
-            <h3 className="text-xs font-bold text-app-text uppercase tracking-wider">
-              3. Notas Adicionales
-            </h3>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-app-text/80 mb-1">
-              Notas / Observaciones (Se imprimirá en el Packing List)
-            </label>
-            <textarea
-              placeholder="Escriba alguna nota, observación o instrucción especial para este packing list..."
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              rows={2}
-              className="w-full px-3 py-2 border border-app-border rounded-lg text-sm bg-app-surface focus:ring-2 focus:ring-app-primary placeholder:text-app-text/45 text-app-text"
-              id="input-pl-notes"
-            />
-          </div>
-        </div>
+          </>
+        )}
 
         {/* Submit Actions */}
         <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 border-t border-app-border pt-4">

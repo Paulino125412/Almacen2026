@@ -8,6 +8,10 @@
   --app-text: #1C2B33;
   --app-primary: #8B5E34;
   --app-secondary: #4A6C6F;
+  --app-success: #4A7A5C;
+  --app-warning: #B5822A;
+  --app-error: #A8432F;
+  --app-info: #4A6C6F;
 }
 
 .dark {
@@ -17,6 +21,10 @@
   --app-text: #E8E4DA;
   --app-primary: #C08552;
   --app-secondary: #6E9C9A;
+  --app-success: #6FA787;
+  --app-warning: #D9A648;
+  --app-error: #D46A57;
+  --app-info: #6E9C9A;
 }
 
 @theme {
@@ -30,6 +38,10 @@
   --color-app-text: var(--app-text);
   --color-app-primary: var(--app-primary);
   --color-app-secondary: var(--app-secondary);
+  --color-app-success: var(--app-success);
+  --color-app-warning: var(--app-warning);
+  --color-app-error: var(--app-error);
+  --color-app-info: var(--app-info);
 }
 
 @variant dark (&:where(.dark, .dark *));
