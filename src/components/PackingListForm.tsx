@@ -339,7 +339,26 @@ export default function PackingListForm({
         });
       });
 
-      setArticleGroups(Object.values(groupsMap));
+      const reconstructedGroups = Object.values(groupsMap).map(group => {
+        const pConfig = providers.find(p => p.id === group.providerId) || null;
+        const isExcelOnly = !!(pConfig && (pConfig.hasRollNo ?? true) && pConfig.hasWidth && pConfig.hasWeight);
+        const hasRowData = group.rolls.some(r => 
+          Boolean(
+            (r.lot && r.lot.trim() !== '') ||
+            (r.partida && r.partida.trim() !== '') ||
+            (r.tono && r.tono.trim() !== '') ||
+            (r.width && r.width.trim() !== '') ||
+            (r.weight && r.weight.trim() !== '')
+          )
+        );
+
+        return {
+          ...group,
+          hasProcessedExcel: isExcelOnly || hasRowData
+        };
+      });
+
+      setArticleGroups(reconstructedGroups);
     } else {
       // Clear form when editingPackingList is null
       setPackingType('nuevo');
@@ -364,7 +383,7 @@ export default function PackingListForm({
         }
       ]);
     }
-  }, [editingPackingList, isDuplicate, packingLists]);
+  }, [editingPackingList, isDuplicate, packingLists, providers, inventory]);
 
   // Filter available inventory rolls
   const availableRolls = useMemo(() => {
