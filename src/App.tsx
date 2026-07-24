@@ -124,6 +124,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isLocal, setIsLocal] = useState(getLocalMode());
   const [showConnectionErrorModal, setShowConnectionErrorModal] = useState(false);
+  const [connectionErrorReason, setConnectionErrorReason] = useState<string | null>(null);
 
   const [hasPendingSync, setHasPendingSync] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -224,11 +225,12 @@ export default function App() {
       });
       unsubs = [];
       
-      // Check if user was already explicitly in local mode
-      if (getLocalMode()) {
-        loadLocalData();
-      } else {
-        // Show connection modal instead of silent switch
+      // Always load local data so application content is populated immediately
+      loadLocalData();
+      setConnectionErrorReason(reason);
+
+      // Show connection modal if user wasn't explicitly in local mode
+      if (!getLocalMode()) {
         setShowConnectionErrorModal(true);
       }
     };
@@ -345,8 +347,12 @@ export default function App() {
     } else {
       try {
         await seedDatabaseIfEmpty();
-      } catch (e) {
+        setConnectionErrorReason(null);
+      } catch (e: any) {
         console.error(e);
+        const reasonStr = `Error al refrescar conexión: ${e?.message || e}`;
+        setConnectionErrorReason(reasonStr);
+        loadLocalData();
         setShowConnectionErrorModal(true);
       } finally {
         setLoading(false);
@@ -655,7 +661,16 @@ export default function App() {
         </header>
 
         {/* Content Body Wrapper */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="flex-1 p-6 overflow-y-auto space-y-4">
+          {connectionErrorReason && (
+            <AlertBanner
+              type="warning"
+              title="Aviso de carga: Modo Local Activado"
+              message={`No se pudo conectar a la nube de Firestore. El sistema activó el modo local. Motivo: ${connectionErrorReason}`}
+              onDismiss={() => setConnectionErrorReason(null)}
+            />
+          )}
+
           {loading ? (
             <div className="flex flex-col justify-center items-center h-80 gap-3 bg-app-surface border border-app-border rounded-lg p-8 shadow-xs">
               <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-app-secondary"></div>
@@ -743,8 +758,15 @@ export default function App() {
             </div>
             
             <div className="p-6 space-y-4">
+              {connectionErrorReason && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300">
+                  <span className="font-bold block uppercase text-[10px] tracking-wider mb-1">Motivo detectado:</span>
+                  <p className="font-mono text-[11px] font-semibold">{connectionErrorReason}</p>
+                </div>
+              )}
+
               <p className="text-xs font-semibold leading-relaxed text-app-text">
-                No se pudo establecer conexión con la base de datos en la nube. Si ya trabajaste antes en este navegador, tus datos guardados y cualquier cambio que hagas ahora probablemente se sincronizarán solos en cuanto vuelva la conexión a internet, gracias al almacenamiento offline de Firestore. El 'Modo Local' de abajo es solo un respaldo adicional que usa datos de ejemplo (no tus datos reales) y es recomendable solo si esta pantalla vuelve a aparecer repetidamente.
+                No se pudo establecer conexión con la base de datos en la nube. Se han cargado automáticamente tus datos locales para que no quedes bloqueado y puedas seguir usando el sistema.
               </p>
               <div className="bg-app-bg border border-app-border rounded-lg p-3 text-[10px] text-app-text/70 leading-normal font-mono">
                 <span className="block font-bold text-app-text uppercase mb-1 tracking-wider text-[9px]">Aviso de sincronización:</span>

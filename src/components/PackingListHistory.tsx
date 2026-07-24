@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PackingList, Client, Seller, Provider, Article, RollItem } from '../types';
 import { db, deleteDoc, updateDoc } from '../firebase';
 import { doc } from 'firebase/firestore';
-import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, FileSpreadsheet, MessageCircle, Plus } from 'lucide-react';
+import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, FileSpreadsheet, MessageCircle, Plus, MoreVertical } from 'lucide-react';
 import { exportPackingListSummaryToExcel, exportPackingListFullDetailsToExcel, exportSinglePackingListToExcel } from '../utils/excelExport';
 import AlertBanner from './AlertBanner';
 
@@ -47,6 +47,9 @@ export default function PackingListHistory({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showOnlyNoGuide, setShowOnlyNoGuide] = useState(false);
+
+  // State for row actions dropdown menu
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // Custom modal states for secure deletion
   const [deleteTarget, setDeleteTarget] = useState<PackingList | null>(null);
@@ -515,54 +518,96 @@ Total Metros: ${totalMeters.toLocaleString('es-PE', { minimumFractionDigits: 2, 
                       <td className="p-4 text-app-text/60 font-medium">{getSellerName(pl.sellerId)}</td>
                       <td className="p-4 text-center font-mono font-bold text-app-text bg-app-bg/10">{pl.items.length.toLocaleString('es-PE')}</td>
                       <td className="p-4 text-right font-mono font-bold text-app-text">{totalMeters.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m</td>
-                      <td className="p-4 text-right pr-5">
-                        <div className="flex justify-end items-center gap-1.5 flex-wrap">
+                      <td className="p-4 text-right pr-5 relative">
+                        <div className="flex justify-end items-center gap-2">
                           <button
                             onClick={() => onSelectPrint(pl)}
-                            className="px-2.5 py-1 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-[10px] flex items-center gap-1 transition uppercase tracking-wider shadow-xs cursor-pointer"
+                            className="px-2.5 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-[10px] flex items-center gap-1.5 transition uppercase tracking-wider shadow-xs cursor-pointer"
                             id={`btn-view-pl-${pl.packingListNo}`}
                             title="Imprimir o exportar PDF"
                           >
-                            <Eye size={12} />
+                            <Eye size={13} />
                             <span className="hidden sm:inline">Imprimir / PDF</span>
                             <span className="sm:hidden">PDF</span>
                           </button>
 
-                          <button
-                            onClick={() => handleShareWhatsApp(pl)}
-                            className="px-2 py-1 bg-app-surface hover:bg-[#25D366]/10 text-app-text/70 hover:text-[#25D366] border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
-                            title="Compartir por WhatsApp"
-                          >
-                            <MessageCircle size={12} />
-                            <span className="hidden md:inline">WhatsApp</span>
-                          </button>
+                          <div className="relative inline-block text-left">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuId(openMenuId === pl.id ? null : pl.id);
+                              }}
+                              className="p-1.5 bg-app-surface hover:bg-app-bg text-app-text/75 hover:text-app-text border border-app-border rounded transition cursor-pointer flex items-center justify-center shadow-2xs"
+                              title="Más opciones"
+                              id={`btn-menu-pl-${pl.packingListNo}`}
+                            >
+                              <MoreVertical size={14} />
+                            </button>
 
-                          <button
-                            onClick={() => onEdit(pl)}
-                            className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-primary border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
-                            title="Modificar / Editar Packing List"
-                          >
-                            <Edit2 size={12} />
-                            <span className="hidden md:inline">Editar</span>
-                          </button>
+                            {openMenuId === pl.id && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-20"
+                                  onClick={() => setOpenMenuId(null)}
+                                />
+                                <div
+                                  className={`absolute right-0 ${
+                                    index >= filteredLists.length - 2 && filteredLists.length > 2
+                                      ? 'bottom-full mb-1'
+                                      : 'top-full mt-1'
+                                  } w-52 bg-app-surface border border-app-border rounded-md shadow-xl z-30 py-1 text-xs text-app-text divide-y divide-app-border/40 animate-fade-in`}
+                                >
+                                  <div className="py-1">
+                                    <button
+                                      onClick={() => {
+                                        setOpenMenuId(null);
+                                        onEdit(pl);
+                                      }}
+                                      className="w-full text-left px-3 py-2 hover:bg-app-bg flex items-center gap-2.5 text-app-text/80 hover:text-app-primary transition cursor-pointer font-semibold"
+                                    >
+                                      <Edit2 size={14} className="text-app-text/60" />
+                                      <span>Editar</span>
+                                    </button>
 
-                          <button
-                            onClick={() => handleExportSinglePL(pl)}
-                            className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-secondary border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
-                            title="Exportar este Packing List a Excel"
-                          >
-                            <FileSpreadsheet size={12} />
-                            <span className="hidden md:inline">Excel</span>
-                          </button>
+                                    <button
+                                      onClick={() => {
+                                        setOpenMenuId(null);
+                                        handleExportSinglePL(pl);
+                                      }}
+                                      className="w-full text-left px-3 py-2 hover:bg-app-bg flex items-center gap-2.5 text-app-text/80 hover:text-app-secondary transition cursor-pointer font-semibold"
+                                    >
+                                      <FileSpreadsheet size={14} className="text-app-text/60" />
+                                      <span>Exportar a Excel</span>
+                                    </button>
 
-                          <button
-                            onClick={() => initiateDelete(pl)}
-                            className="px-2 py-1 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 hover:bg-red-600 hover:text-white rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-2xs"
-                            title="Eliminar registro permanente"
-                          >
-                            <Trash2 size={12} />
-                            <span className="hidden md:inline">Eliminar</span>
-                          </button>
+                                    <button
+                                      onClick={() => {
+                                        setOpenMenuId(null);
+                                        handleShareWhatsApp(pl);
+                                      }}
+                                      className="w-full text-left px-3 py-2 hover:bg-[#25D366]/10 flex items-center gap-2.5 text-app-text/80 hover:text-[#25D366] transition cursor-pointer font-semibold"
+                                    >
+                                      <MessageCircle size={14} className="text-[#25D366]" />
+                                      <span>Compartir por WhatsApp</span>
+                                    </button>
+                                  </div>
+
+                                  <div className="py-1">
+                                    <button
+                                      onClick={() => {
+                                        setOpenMenuId(null);
+                                        initiateDelete(pl);
+                                      }}
+                                      className="w-full text-left px-3 py-2 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2.5 text-red-600 dark:text-red-400 transition cursor-pointer font-semibold"
+                                    >
+                                      <Trash2 size={14} />
+                                      <span>Eliminar</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
