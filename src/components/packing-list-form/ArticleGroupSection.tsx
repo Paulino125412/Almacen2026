@@ -58,9 +58,45 @@ export default function ArticleGroupSection({
   onAddNewArticle,
   onAddScannedRoll
 }: ArticleGroupSectionProps) {
-  const pConfig = providers.find(p => p.id === group.providerId) || null;
+  const groupEffectiveProviderId = group.providerId || formProviderId;
+  const pConfig = providers.find(p => p.id === groupEffectiveProviderId) || null;
   const isExcelOnly = pConfig && (pConfig.hasRollNo ?? true) && pConfig.hasWidth && pConfig.hasWeight;
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  const currentArticleObj = articles.find(a => a.id === group.articleId || a.name === group.articleId);
+  const effectiveArticleId = currentArticleObj ? currentArticleObj.id : group.articleId;
+
+  const articleOptions = articles
+    .filter(a => 
+      !groupEffectiveProviderId || 
+      a.providerId === groupEffectiveProviderId || 
+      a.id === effectiveArticleId || 
+      a.id === group.articleId || 
+      a.name === group.articleId
+    )
+    .map(a => {
+      const provName = providers.find(p => p.id === a.providerId)?.name || '';
+      return {
+        id: a.id,
+        name: a.name,
+        detail: provName
+      };
+    });
+
+  if (group.articleId && !articleOptions.some(o => o.id === group.articleId || o.id === effectiveArticleId || o.name === group.articleId)) {
+    articleOptions.unshift({
+      id: group.articleId,
+      name: currentArticleObj ? currentArticleObj.name : group.articleId,
+      detail: ''
+    });
+  }
+
+  const showLot = Boolean((pConfig?.hasLot) || group.rolls.some(r => !!r.lot) || group.source === 'custom');
+  const showPartida = Boolean((pConfig?.hasPartida) || group.rolls.some(r => !!r.partida) || group.source === 'custom');
+  const showTono = Boolean((pConfig?.hasTono) || group.rolls.some(r => !!r.tono) || group.source === 'custom');
+  const showWidth = Boolean((pConfig?.hasWidth) || group.rolls.some(r => !!r.width) || group.source === 'custom');
+  const showWeight = Boolean((pConfig?.hasWeight) || group.rolls.some(r => !!r.weight) || group.source === 'custom');
+  const showExtraRowFields = showLot || showPartida || showTono || showWidth || showWeight;
 
   const handleOpenScanner = () => {
     if (!group.articleId) {
@@ -125,11 +161,9 @@ export default function ArticleGroupSection({
             <SearchableCombobox
               label="Artículo (Tela) *"
               placeholder="Buscar o registrar Artículo..."
-              value={group.articleId}
+              value={effectiveArticleId || group.articleId}
               onChange={val => onGroupFieldChange(group.id, 'articleId', val)}
-              options={articles
-                .filter(a => a.providerId === formProviderId)
-                .map(a => ({ id: a.id, name: a.name }))}
+              options={articleOptions}
               addNewText="Registrar como Nuevo Artículo (Tela)"
               onAddNewWithFields={onAddNewArticle}
               additionalFields={[
@@ -142,26 +176,17 @@ export default function ArticleGroupSection({
             <SearchableCombobox
               label="Artículo del Despacho (Pick de Almacén) *"
               placeholder="Buscar Artículo en Almacén..."
-              value={group.articleId}
+              value={effectiveArticleId || group.articleId}
               onChange={val => {
-                const selectedArt = articles.find(a => a.id === val);
+                const selectedArt = articles.find(a => a.id === val || a.name === val);
                 if (selectedArt) {
                   onGroupFieldChange(group.id, 'providerId', selectedArt.providerId);
                   onGroupFieldChange(group.id, 'articleId', selectedArt.id);
                 } else {
-                  onGroupFieldChange(group.id, 'articleId', '');
+                  onGroupFieldChange(group.id, 'articleId', val);
                 }
               }}
-              options={articles
-                .filter(a => a.providerId === formProviderId)
-                .map(a => {
-                  const provName = providers.find(p => p.id === a.providerId)?.name || '';
-                  return {
-                    id: a.id,
-                    name: a.name,
-                    detail: provName
-                  };
-                })}
+              options={articleOptions}
             />
           </div>
         )}
@@ -173,48 +198,42 @@ export default function ArticleGroupSection({
           {pConfig.hasLot && (
             <div>
               <label className="block text-xs md:text-[10px] font-bold text-app-text/80 mb-1 uppercase">
-                Lote {!group.hasProcessedExcel && '*'}
+                Lote (Compartido)
               </label>
               <input
                 type="text"
-                required={!group.hasProcessedExcel}
-                disabled={group.hasProcessedExcel}
-                placeholder={group.hasProcessedExcel ? "Cargado en lista" : "Ingrese Lote"}
+                placeholder="Ingrese Lote para el grupo"
                 value={group.lot}
                 onChange={e => onGroupFieldChange(group.id, 'lot', e.target.value)}
-                className="w-full px-3 py-2 md:py-1.5 border border-app-border rounded-lg text-xs font-mono bg-app-surface text-app-text disabled:bg-app-bg disabled:text-app-text/40 disabled:cursor-not-allowed min-h-[40px] md:min-h-0"
+                className="w-full px-3 py-2 md:py-1.5 border border-app-border rounded-lg text-xs font-mono bg-app-surface text-app-text min-h-[40px] md:min-h-0"
               />
             </div>
           )}
           {pConfig.hasPartida && (
             <div>
               <label className="block text-xs md:text-[10px] font-bold text-app-text/80 mb-1 uppercase">
-                Partida {!group.hasProcessedExcel && '*'}
+                Partida (Compartida)
               </label>
               <input
                 type="text"
-                required={!group.hasProcessedExcel}
-                disabled={group.hasProcessedExcel}
-                placeholder={group.hasProcessedExcel ? "Cargado en lista" : "Ingrese Partida"}
+                placeholder="Ingrese Partida para el grupo"
                 value={group.partida}
                 onChange={e => onGroupFieldChange(group.id, 'partida', e.target.value)}
-                className="w-full px-3 py-2 md:py-1.5 border border-app-border rounded-lg text-xs font-mono bg-app-surface text-app-text disabled:bg-app-bg disabled:text-app-text/40 disabled:cursor-not-allowed min-h-[40px] md:min-h-0"
+                className="w-full px-3 py-2 md:py-1.5 border border-app-border rounded-lg text-xs font-mono bg-app-surface text-app-text min-h-[40px] md:min-h-0"
               />
             </div>
           )}
           {pConfig.hasTono && (
             <div>
               <label className="block text-xs md:text-[10px] font-bold text-app-text/80 mb-1 uppercase">
-                Tono / Color {!group.hasProcessedExcel && '*'}
+                Tono / Color (Compartido)
               </label>
               <input
                 type="text"
-                required={!group.hasProcessedExcel}
-                disabled={group.hasProcessedExcel}
-                placeholder={group.hasProcessedExcel ? "Cargado en lista" : "Ingrese Tono"}
+                placeholder="Ingrese Tono para el grupo"
                 value={group.tono}
                 onChange={e => onGroupFieldChange(group.id, 'tono', e.target.value)}
-                className="w-full px-3 py-2 md:py-1.5 border border-app-border rounded-lg text-xs font-mono bg-app-surface text-app-text disabled:bg-app-bg disabled:text-app-text/40 disabled:cursor-not-allowed min-h-[40px] md:min-h-0"
+                className="w-full px-3 py-2 md:py-1.5 border border-app-border rounded-lg text-xs font-mono bg-app-surface text-app-text min-h-[40px] md:min-h-0"
               />
             </div>
           )}
@@ -375,10 +394,10 @@ export default function ArticleGroupSection({
                   </div>
 
                   {/* Group optional extra fields in a responsive grid on mobile */}
-                  {pConfig && (pConfig.hasLot || pConfig.hasPartida || pConfig.hasTono || pConfig.hasWidth || pConfig.hasWeight) && (
+                  {showExtraRowFields && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:items-center gap-2 w-full md:w-auto">
                       {/* Optional Lote per roll */}
-                      {pConfig.hasLot && group.source === 'custom' && (
+                      {showLot && (
                         <div className="w-full md:w-24 shrink-0">
                           <input
                             type="text"
@@ -391,7 +410,7 @@ export default function ArticleGroupSection({
                       )}
 
                       {/* Optional Partida per roll */}
-                      {pConfig.hasPartida && group.source === 'custom' && (
+                      {showPartida && (
                         <div className="w-full md:w-24 shrink-0">
                           <input
                             type="text"
@@ -404,7 +423,7 @@ export default function ArticleGroupSection({
                       )}
 
                       {/* Optional Tono per roll */}
-                      {pConfig.hasTono && (
+                      {showTono && (
                         <div className="w-full md:w-24 shrink-0">
                           <input
                             type="text"
@@ -417,7 +436,7 @@ export default function ArticleGroupSection({
                       )}
 
                       {/* Optional Ancho per roll */}
-                      {pConfig.hasWidth && (
+                      {showWidth && (
                         <div className="w-full md:w-24 shrink-0">
                           <input
                             type="text"
@@ -430,7 +449,7 @@ export default function ArticleGroupSection({
                       )}
 
                       {/* Optional Peso per roll */}
-                      {pConfig.hasWeight && (
+                      {showWeight && (
                         <div className="w-full md:w-24 shrink-0">
                           <input
                             type="text"

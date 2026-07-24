@@ -53,11 +53,13 @@ export default function SearchableCombobox({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Sync typed search text with currently selected option label
-  const selectedOption = options.find(o => o.id === value);
+  const selectedOption = options.find(o => o.id === value || o.name === value);
 
   useEffect(() => {
     if (selectedOption) {
       setSearch(selectedOption.name);
+    } else if (value) {
+      setSearch(value);
     } else {
       setSearch('');
     }
@@ -73,6 +75,8 @@ export default function SearchableCombobox({
         // Re-sync input text with current selection if they clicked away without choosing
         if (selectedOption) {
           setSearch(selectedOption.name);
+        } else if (value) {
+          setSearch(value);
         } else {
           setSearch('');
         }
@@ -80,7 +84,7 @@ export default function SearchableCombobox({
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [selectedOption]);
+  }, [selectedOption, value]);
 
   // Filter options based on search query
   const filteredOptions = options.filter(o => {

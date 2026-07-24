@@ -247,7 +247,7 @@ export default function PackingListForm({
 
   // Propagate formProviderId to all article groups and reset incompatible ones
   useEffect(() => {
-    if (formProviderId) {
+    if (formProviderId && !editingPackingList) {
       setArticleGroups(prev => prev.map(g => {
         if (g.providerId !== formProviderId) {
           const matchingArticles = articles.filter(a => a.providerId === formProviderId);
@@ -264,7 +264,7 @@ export default function PackingListForm({
         return g;
       }));
     }
-  }, [formProviderId, articles]);
+  }, [formProviderId, articles, editingPackingList]);
 
   // Generate unique correlative document number
   useEffect(() => {
@@ -276,9 +276,12 @@ export default function PackingListForm({
   // Prefill form for Editing / Duplicating
   useEffect(() => {
     if (editingPackingList) {
+      const clientObj = clients.find(c => c.id === editingPackingList.clientId || c.name === editingPackingList.clientId);
+      const sellerObj = sellers.find(s => s.id === editingPackingList.sellerId || s.name === editingPackingList.sellerId);
+
       setPackingType(editingPackingList.type as any);
-      setClientId(editingPackingList.clientId);
-      setSellerId(editingPackingList.sellerId);
+      setClientId(clientObj ? clientObj.id : (editingPackingList.clientId || ''));
+      setSellerId(sellerObj ? sellerObj.id : (editingPackingList.sellerId || ''));
       setGuideNumber(editingPackingList.guideNumber || '');
       setDispatchAddress(editingPackingList.dispatchAddress || '');
       
@@ -287,28 +290,37 @@ export default function PackingListForm({
         setDocDate(new Date().toISOString().split('T')[0]);
         setPackingListNo(getNextPackingListNo(packingLists));
       } else {
-        setDocDate(editingPackingList.date);
-        setPackingListNo(editingPackingList.packingListNo);
+        setDocDate(editingPackingList.date || new Date().toISOString().split('T')[0]);
+        setPackingListNo(editingPackingList.packingListNo || '');
       }
       
       setNotes(editingPackingList.notes || '');
       
-      // Determine formProviderId from the first item if available
-      if (editingPackingList.items && editingPackingList.items.length > 0) {
-        setFormProviderId(editingPackingList.items[0].providerId);
-      } else {
-        setFormProviderId('');
-      }
+      // Determine formProviderId from the first item if available, resolving from articles if missing
+      const plItems = editingPackingList.items || [];
+      const firstItem = plItems[0];
+      const firstArticle = firstItem ? articles.find(a => a.id === firstItem.articleId || a.name === firstItem.articleId) : null;
+      const firstProvider = firstItem ? providers.find(p => p.id === firstItem.providerId || p.name === firstItem.providerId) : null;
+      const initialProviderId = firstProvider?.id || firstItem?.providerId || (firstArticle ? firstArticle.providerId : '');
+      setFormProviderId(initialProviderId);
 
       // Group items by providerId + articleId
       const groupsMap: Record<string, FormArticleGroup> = {};
-      editingPackingList.items.forEach(item => {
-        const groupKey = `${item.providerId}-${item.articleId}`;
+      plItems.forEach((item, itemIdx) => {
+        const articleObj = articles.find(a => a.id === item.articleId || a.name === item.articleId);
+        const resolvedArticleId = articleObj ? articleObj.id : (item.articleId || '');
+
+        const providerObj = providers.find(p => p.id === item.providerId || p.name === item.providerId) || 
+                            (articleObj ? providers.find(p => p.id === articleObj.providerId) : null);
+        const resolvedProviderId = providerObj ? providerObj.id : (item.providerId || initialProviderId);
+
+        const groupKey = `${resolvedProviderId || 'no-prov'}-${resolvedArticleId || 'no-art'}`;
+
         if (!groupsMap[groupKey]) {
           groupsMap[groupKey] = {
-            id: `group-prefill-${item.providerId}-${item.articleId}-${Math.random()}`,
-            providerId: item.providerId,
-            articleId: item.articleId,
+            id: `group-prefill-${resolvedProviderId}-${resolvedArticleId}-${itemIdx}-${Math.random()}`,
+            providerId: resolvedProviderId,
+            articleId: resolvedArticleId,
             lot: item.lot || '',
             partida: item.partida || '',
             tono: item.tono || '',
@@ -326,20 +338,20 @@ export default function PackingListForm({
         }
 
         groupsMap[groupKey].rolls.push({
-          id: item.id || `roll-prefill-${Math.random()}`,
+          id: item.id || `roll-prefill-${itemIdx}-${Math.random()}`,
           rollId: item.rollId,
-          rollNumber: item.rollNumber,
-          meters: item.meters,
+          rollNumber: item.rollNumber || '',
+          meters: item.meters || 0,
           maxMeters,
-          lot: item.lot,
-          partida: item.partida,
-          tono: item.tono,
+          lot: item.lot || '',
+          partida: item.partida || '',
+          tono: item.tono || '',
           width: item.width || '',
           weight: item.weight || ''
         });
       });
 
-      const reconstructedGroups = Object.values(groupsMap).map(group => {
+      let reconstructedGroups = Object.values(groupsMap).map(group => {
         const pConfig = providers.find(p => p.id === group.providerId) || null;
         const isExcelOnly = !!(pConfig && (pConfig.hasRollNo ?? true) && pConfig.hasWidth && pConfig.hasWeight);
         const hasRowData = group.rolls.some(r => 
@@ -357,6 +369,22 @@ export default function PackingListForm({
           hasProcessedExcel: isExcelOnly || hasRowData
         };
       });
+
+      if (reconstructedGroups.length === 0) {
+        reconstructedGroups = [
+          {
+            id: `group-${Date.now()}-${Math.random()}`,
+            providerId: initialProviderId,
+            articleId: '',
+            lot: '',
+            partida: '',
+            tono: '',
+            source: 'custom',
+            rolls: [],
+            hasProcessedExcel: false
+          }
+        ];
+      }
 
       setArticleGroups(reconstructedGroups);
     } else {
@@ -379,11 +407,12 @@ export default function PackingListForm({
           partida: '',
           tono: '',
           source: 'custom',
-          rolls: []
+          rolls: [],
+          hasProcessedExcel: false
         }
       ]);
     }
-  }, [editingPackingList, isDuplicate, packingLists, providers, inventory]);
+  }, [editingPackingList, isDuplicate, packingLists, providers, inventory, articles, clients, sellers]);
 
   // Filter available inventory rolls
   const availableRolls = useMemo(() => {

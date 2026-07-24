@@ -399,11 +399,6 @@ export default function App() {
               setIsDuplicate(false);
               setActiveTab('generate');
             }}
-            onDuplicate={(pl) => {
-              setEditingPackingList(pl);
-              setIsDuplicate(true);
-              setActiveTab('generate');
-            }}
             initialSearchTerm={historySearchQuery}
             onCreateNew={() => setActiveTab('generate')}
           />

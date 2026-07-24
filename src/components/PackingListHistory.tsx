@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PackingList, Client, Seller, Provider, Article, RollItem } from '../types';
 import { db, deleteDoc, updateDoc } from '../firebase';
 import { doc } from 'firebase/firestore';
-import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, Copy, FileSpreadsheet, MessageCircle, Plus } from 'lucide-react';
+import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, FileSpreadsheet, MessageCircle, Plus } from 'lucide-react';
 import { exportPackingListSummaryToExcel, exportPackingListFullDetailsToExcel, exportSinglePackingListToExcel } from '../utils/excelExport';
 import AlertBanner from './AlertBanner';
 
@@ -16,7 +16,7 @@ interface PackingListHistoryProps {
   onRefresh: () => Promise<void>;
   onSelectPrint: (pl: PackingList) => void;
   onEdit: (pl: PackingList) => void;
-  onDuplicate: (pl: PackingList) => void;
+  onDuplicate?: (pl: PackingList) => void;
   initialSearchTerm?: string;
   onCreateNew?: () => void;
 }
@@ -31,7 +31,6 @@ export default function PackingListHistory({
   onRefresh,
   onSelectPrint,
   onEdit,
-  onDuplicate,
   initialSearchTerm,
   onCreateNew
 }: PackingListHistoryProps) {
@@ -545,15 +544,6 @@ Total Metros: ${totalMeters.toLocaleString('es-PE', { minimumFractionDigits: 2, 
                           >
                             <Edit2 size={12} />
                             <span className="hidden md:inline">Editar</span>
-                          </button>
-
-                          <button
-                            onClick={() => onDuplicate(pl)}
-                            className="px-2 py-1 bg-app-surface hover:bg-app-bg text-app-text/70 hover:text-app-text border border-app-border rounded transition cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
-                            title="Duplicar / Clonar Packing List"
-                          >
-                            <Copy size={12} />
-                            <span className="hidden md:inline">Clonar</span>
                           </button>
 
                           <button
