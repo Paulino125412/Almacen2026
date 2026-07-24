@@ -72,7 +72,7 @@ export default function PackingListHistory({
 Cliente: ${clientName}
 Fecha: ${pl.date}
 Total Rollos: ${pl.totalRollsOrCuts}
-Total Metros: ${totalMeters.toFixed(2)} m`;
+Total Metros: ${totalMeters.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
@@ -360,7 +360,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
             <span className="bg-app-bg text-app-text text-[10px] px-2 py-0.5 rounded font-bold">Docs</span>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-bold text-app-text tracking-tight">{filteredLists.length}</span>
+            <span className="text-2xl font-bold text-app-text tracking-tight">{filteredLists.length.toLocaleString('es-PE')}</span>
             <span className="text-[10px] text-app-text/50 block mt-1 font-medium">Documentos registrados en este filtro</span>
           </div>
         </div>
@@ -373,7 +373,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
           </div>
           <div className="mt-3">
             <span className="text-2xl font-bold text-app-text tracking-tight">
-              {filteredLists.reduce((acc, pl) => acc + pl.items.reduce((sum, item) => sum + item.meters, 0), 0).toFixed(2)}
+              {filteredLists.reduce((acc, pl) => acc + pl.items.reduce((sum, item) => sum + item.meters, 0), 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
             <span className="text-[10px] text-app-text/50 block mt-1 font-medium">Metros totales despachados</span>
           </div>
@@ -387,7 +387,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
           </div>
           <div className="mt-3">
             <span className="text-2xl font-bold text-app-text tracking-tight">
-              {filteredLists.reduce((acc, pl) => acc + pl.items.length, 0)}
+              {filteredLists.reduce((acc, pl) => acc + pl.items.length, 0).toLocaleString('es-PE')}
             </span>
             <span className="text-[10px] text-app-text/50 block mt-1 font-medium">Cantidad de piezas despachadas</span>
           </div>
@@ -396,10 +396,10 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
 
       {/* History Table - Corporate Grid Layout */}
       <div className="bg-app-surface border border-app-border rounded-lg overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[70vh]">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-app-bg/45 border-b border-app-border text-[10px] text-app-text/60 uppercase font-bold tracking-wider">
+            <thead className="sticky top-0 z-10 bg-app-surface">
+              <tr className="bg-app-surface border-b border-app-border text-[10px] text-app-text/60 uppercase font-bold tracking-wider">
                 <th className="p-4 pl-5 text-center w-12">Nº</th>
                 <th className="p-4">Nº Packing List</th>
                 <th className="p-4">Tipo</th>
@@ -514,8 +514,8 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
                       </td>
                       <td className="p-4 font-semibold text-app-text">{getClientName(pl.clientId)}</td>
                       <td className="p-4 text-app-text/60 font-medium">{getSellerName(pl.sellerId)}</td>
-                      <td className="p-4 text-center font-mono font-bold text-app-text bg-app-bg/10">{pl.items.length}</td>
-                      <td className="p-4 text-right font-mono font-bold text-app-text">{totalMeters.toFixed(2)} m</td>
+                      <td className="p-4 text-center font-mono font-bold text-app-text bg-app-bg/10">{pl.items.length.toLocaleString('es-PE')}</td>
+                      <td className="p-4 text-right font-mono font-bold text-app-text">{totalMeters.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m</td>
                       <td className="p-4 text-right pr-5">
                         <div className="flex justify-end items-center gap-1.5 flex-wrap">
                           <button

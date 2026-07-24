@@ -798,7 +798,7 @@ export default function InventoryManager({
 
         <div className="flex flex-wrap justify-between items-center gap-3 mt-5 pt-4 border-t border-app-border">
           <p className="text-xs text-app-text/60 font-medium">
-            Encontrados: <span className="font-semibold text-app-text">{filteredInventory.length}</span> rollos textiles en almacén.
+            Encontrados: <span className="font-semibold text-app-text">{filteredInventory.length.toLocaleString('es-PE')}</span> rollos (Total: <span className="font-semibold text-app-text">{filteredInventory.reduce((sum, item) => sum + item.currentMeters, 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m</span> disponibles) en almacén.
           </p>
           <div className="flex gap-2">
             <button
@@ -833,10 +833,10 @@ export default function InventoryManager({
 
       {/* Inventory table */}
       <div className="bg-app-surface border border-app-border rounded-lg overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[70vh]">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-app-bg/45 border-b border-app-border text-[10px] text-app-text/60 uppercase font-bold tracking-wider">
+            <thead className="sticky top-0 z-10 bg-app-surface">
+              <tr className="bg-app-surface border-b border-app-border text-[10px] text-app-text/60 uppercase font-bold tracking-wider">
                 <th className="p-4 pl-5">Número de Rollo</th>
                 <th className="p-4">Artículo / Tela</th>
                 <th className="p-4">Proveedor</th>
@@ -939,9 +939,9 @@ export default function InventoryManager({
                       {filteredInventory.some(r => r.weight && r.weight.trim() !== '') && (
                         <td className="p-4 font-mono text-center">{item.weight || '-'}</td>
                       )}
-                      <td className="p-4 text-right font-mono font-medium text-app-text/45">{item.initialMeters.toFixed(2)} m</td>
+                      <td className="p-4 text-right font-mono font-medium text-app-text/45">{item.initialMeters.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m</td>
                       <td className={`p-4 text-right font-mono font-bold ${isAvailable ? 'text-app-secondary text-sm' : 'text-app-text/45'}`}>
-                        {item.currentMeters.toFixed(2)} m
+                        {item.currentMeters.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m
                       </td>
                       <td className="p-4 text-center">
                         <span className={`inline-block px-2 py-0.5 text-[9px] rounded font-bold border ${

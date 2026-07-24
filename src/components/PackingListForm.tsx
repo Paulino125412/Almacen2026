@@ -1303,6 +1303,37 @@ export default function PackingListForm({
         </div>
       </div>
 
+      {editingPackingList && (
+        <AlertBanner
+          type="info"
+          message={
+            <div className="flex items-center justify-between gap-3 w-full flex-wrap sm:flex-nowrap">
+              <span className="font-medium">
+                {isDuplicate ? (
+                  <>
+                    Duplicando Packing List N° <strong className="font-mono">{editingPackingList.packingListNo}</strong> — se generará un número nuevo al guardar.
+                  </>
+                ) : (
+                  <>
+                    Editando Packing List N° <strong className="font-mono">{editingPackingList.packingListNo}</strong>
+                  </>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={handleConfirmReset}
+                className="px-2.5 py-1 bg-app-info/20 hover:bg-app-info/30 text-app-info border border-app-info/40 rounded text-xs font-bold transition cursor-pointer shrink-0 ml-auto"
+                id="btn-cancel-editing-mode"
+              >
+                Cancelar Edición
+              </button>
+            </div>
+          }
+          className="mb-4"
+          id="alert-pl-editing-mode"
+        />
+      )}
+
       {error && (
         <AlertBanner
           type="error"
@@ -1494,8 +1525,8 @@ export default function PackingListForm({
           </>
         )}
 
-        {/* Submit Actions */}
-        <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 border-t border-app-border pt-4">
+        {/* Submit Actions - Floating Sticky Bar */}
+        <div className="sticky bottom-0 z-20 bg-app-surface border-t border-app-border p-4 -mx-6 -mb-6 mt-6 shadow-lg flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 rounded-b-xl">
           <span className="text-[10px] text-app-text/45 font-semibold font-mono no-print text-center sm:text-left sm:mr-auto">
             Atajo: <span className="bg-app-bg border border-app-border rounded px-1.5 py-0.5 font-bold">Ctrl + Enter</span> para guardar
           </span>
