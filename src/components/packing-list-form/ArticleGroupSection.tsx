@@ -344,8 +344,11 @@ export default function ArticleGroupSection({
                           className="w-full px-2.5 py-2 md:py-1 border border-app-border rounded-md text-xs font-mono font-bold text-app-text bg-app-surface min-h-[40px] md:min-h-0"
                         >
                           <option value="">-- Seleccionar Rollo de Stock --</option>
-                          {availableRolls
-                            .filter(r => r.articleId === group.articleId)
+                          {allInventory
+                            .filter(r =>
+                              r.articleId === group.articleId &&
+                              (r.currentMeters > 0 || r.id === roll.rollId)
+                            )
                             .map(r => (
                               <option key={r.id} value={r.id}>
                                 {r.rollNumber} [Stock: {r.currentMeters.toFixed(2)}m] {r.lot ? `| Lote: ${r.lot}` : ''}

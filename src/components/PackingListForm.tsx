@@ -386,9 +386,6 @@ export default function PackingListForm({
         ];
       }
 
-      console.log('DEBUG GRUPOS RECONSTRUIDOS:', JSON.stringify(reconstructedGroups, null, 2));
-      console.log('DEBUG CANTIDAD DE ROLLOS POR GRUPO:', reconstructedGroups.map(g => ({ articleId: g.articleId, providerId: g.providerId, cantidadRollos: g.rolls.length })));
-
       setArticleGroups(reconstructedGroups);
     } else {
       // Clear form when editingPackingList is null
@@ -1043,20 +1040,34 @@ export default function PackingListForm({
         // --- 1. MODIFICAR/EDITAR PACKING LIST EXISTENTE ---
         
         // A. Primero revertimos el stock e historial de los artículos despachados originalmente
+        const revertedRolls: Record<string, { currentMeters: number; initialMeters: number }> = {};
+
         for (const item of editingPackingList.items) {
-          if (item.rollId) {
+          if (!item.rollId) continue;
+
+          if (!revertedRolls[item.rollId]) {
             const roll = inventory.find(r => r.id === item.rollId);
             if (roll) {
-              const revertedMeters = roll.currentMeters + item.meters;
-              const status = revertedMeters >= roll.initialMeters ? 'available' : 'partially_sold';
-              
-              await updateDoc(doc(db, 'inventory', item.rollId), {
-                currentMeters: revertedMeters,
-                status,
-                updatedAt: new Date().toISOString()
-              });
+              revertedRolls[item.rollId] = {
+                currentMeters: roll.currentMeters,
+                initialMeters: roll.initialMeters
+              };
             }
           }
+
+          if (revertedRolls[item.rollId]) {
+            revertedRolls[item.rollId].currentMeters += item.meters;
+          }
+        }
+
+        for (const [rollId, roll] of Object.entries(revertedRolls)) {
+          const status = roll.currentMeters >= roll.initialMeters ? 'available' : 'partially_sold';
+
+          await updateDoc(doc(db, 'inventory', rollId), {
+            currentMeters: roll.currentMeters,
+            status,
+            updatedAt: new Date().toISOString()
+          });
         }
 
         // B. Preparamos el objeto modificado
@@ -1088,8 +1099,9 @@ export default function PackingListForm({
             const roll = inventory.find(r => r.id === item.rollId);
             if (roll) {
               // Calculamos el metraje final: metraje actual + metraje anterior (si existía) - nuevo metraje despachado
-              const oldItem = editingPackingList.items.find(oi => oi.rollId === item.rollId && oi.articleId === item.articleId);
-              const oldMeters = oldItem ? oldItem.meters : 0;
+              const oldMeters = editingPackingList.items
+                .filter(oi => oi.rollId === item.rollId)
+                .reduce((total, oldItem) => total + oldItem.meters, 0);
               const nextMeters = Math.max(0, roll.currentMeters + oldMeters - item.meters);
               const status = nextMeters === 0 ? 'sold' : 'available';
 

@@ -347,11 +347,14 @@ export default function CatalogManager({
       count = packingLists.filter(pl => pl.items?.some(item => item.articleId === id)).length;
     }
 
-    const confirmMessage = count > 0
-      ? `Este registro tiene ${count} Packing List(s) asociados. Eliminarlo NO borrará esos despachos, pero perderás la referencia a este nombre/dato en ellos (aparecerá como "no disponible" en el historial). ¿Deseas continuar de todas formas?`
-      : '¿Está seguro de eliminar este registro del catálogo?';
+    if (count > 0) {
+      setError(
+        `No se puede eliminar este registro porque está asociado a ${count} Packing List(s).`
+      );
+      return;
+    }
 
-    if (!window.confirm(confirmMessage)) return;
+    if (!window.confirm('¿Está seguro de eliminar este registro del catálogo?')) return;
     setLoading(true);
     setError(null);
     try {

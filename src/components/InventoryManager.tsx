@@ -179,12 +179,7 @@ export default function InventoryManager({
       };
 
       // Add to firestore
-      const docRef = doc(db, 'inventory', newId);
-      await updateDoc(docRef, rollData as any).catch(async () => {
-         // Fallback if updateDoc fails (doesn't exist), we setDoc
-         const { setDoc } = await import('firebase/firestore');
-         await setDoc(docRef, rollData);
-      });
+      await addDoc(collection(db, 'inventory'), rollData);
 
       await onRefresh();
       
@@ -212,9 +207,7 @@ export default function InventoryManager({
     try {
       // Loop through and insert all rolls
       for (const roll of newRolls) {
-        const newId = `roll-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-        const docRef = doc(db, 'inventory', newId);
-        await setDoc(docRef, roll);
+        await addDoc(collection(db, 'inventory'), roll);
       }
 
       await onRefresh();
@@ -253,8 +246,11 @@ export default function InventoryManager({
     setLoading(true);
     setError(null);
     try {
-      const difference = adjustedMeters - roll.currentMeters;
-      const status = adjustedMeters === 0 ? 'sold' : 'available';
+      const status = adjustedMeters === 0
+        ? 'sold'
+        : adjustedMeters >= roll.initialMeters
+          ? 'available'
+          : 'partially_sold';
 
       await updateDoc(doc(db, 'inventory', adjustingId), {
         currentMeters: Number(adjustedMeters),
