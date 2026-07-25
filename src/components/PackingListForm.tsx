@@ -276,6 +276,13 @@ export default function PackingListForm({
   // Prefill form for Editing / Duplicating
   useEffect(() => {
     if (editingPackingList) {
+      console.log('DEBUG EDITAR:', {
+        editingPackingList,
+        items: editingPackingList.items,
+        itemsLength: editingPackingList.items?.length,
+        itemsIsArray: Array.isArray(editingPackingList.items)
+      });
+
       const clientObj = clients.find(c => c.id === editingPackingList.clientId || c.name === editingPackingList.clientId);
       const sellerObj = sellers.find(s => s.id === editingPackingList.sellerId || s.name === editingPackingList.sellerId);
 
