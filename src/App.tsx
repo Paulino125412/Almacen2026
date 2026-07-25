@@ -214,7 +214,7 @@ export default function App() {
     const triggerFallback = (reason: string) => {
       if (fallbackTriggered) return;
       fallbackTriggered = true;
-      console.warn(`Switched to Local Mode. Reason: ${reason}`);
+      console.warn(`Connection issue detected: ${reason}`);
       
       // Clear timeout
       if (timeoutId) clearTimeout(timeoutId);
@@ -225,13 +225,14 @@ export default function App() {
       });
       unsubs = [];
       
-      // Always load local data so application content is populated immediately
-      loadLocalData();
       setConnectionErrorReason(reason);
+      setLoading(false);
 
       // Show connection modal if user wasn't explicitly in local mode
       if (!getLocalMode()) {
         setShowConnectionErrorModal(true);
+      } else {
+        loadLocalData();
       }
     };
 
@@ -665,9 +666,8 @@ export default function App() {
           {connectionErrorReason && (
             <AlertBanner
               type="warning"
-              title="Aviso de carga: Modo Local Activado"
-              message={`No se pudo conectar a la nube de Firestore. El sistema activó el modo local. Motivo: ${connectionErrorReason}`}
-              onDismiss={() => setConnectionErrorReason(null)}
+              message={`No se pudo conectar a la nube de Firestore. Motivo: ${connectionErrorReason}`}
+              onClose={() => setConnectionErrorReason(null)}
             />
           )}
 
@@ -759,14 +759,14 @@ export default function App() {
             
             <div className="p-6 space-y-4">
               {connectionErrorReason && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300">
+                <div className="bg-app-warning/10 border border-app-warning/30 rounded-lg p-3 text-xs text-app-warning">
                   <span className="font-bold block uppercase text-[10px] tracking-wider mb-1">Motivo detectado:</span>
                   <p className="font-mono text-[11px] font-semibold">{connectionErrorReason}</p>
                 </div>
               )}
 
               <p className="text-xs font-semibold leading-relaxed text-app-text">
-                No se pudo establecer conexión con la base de datos en la nube. Se han cargado automáticamente tus datos locales para que no quedes bloqueado y puedas seguir usando el sistema.
+                No se pudo establecer conexión con la base de datos en la nube. Puedes reintentar la conexión o elegir trabajar en modo local con los datos guardados en este navegador.
               </p>
               <div className="bg-app-bg border border-app-border rounded-lg p-3 text-[10px] text-app-text/70 leading-normal font-mono">
                 <span className="block font-bold text-app-text uppercase mb-1 tracking-wider text-[9px]">Aviso de sincronización:</span>
