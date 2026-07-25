@@ -276,13 +276,6 @@ export default function PackingListForm({
   // Prefill form for Editing / Duplicating
   useEffect(() => {
     if (editingPackingList) {
-      console.log('DEBUG EDITAR:', {
-        editingPackingList,
-        items: editingPackingList.items,
-        itemsLength: editingPackingList.items?.length,
-        itemsIsArray: Array.isArray(editingPackingList.items)
-      });
-
       const clientObj = clients.find(c => c.id === editingPackingList.clientId || c.name === editingPackingList.clientId);
       const sellerObj = sellers.find(s => s.id === editingPackingList.sellerId || s.name === editingPackingList.sellerId);
 
@@ -392,6 +385,9 @@ export default function PackingListForm({
           }
         ];
       }
+
+      console.log('DEBUG GRUPOS RECONSTRUIDOS:', JSON.stringify(reconstructedGroups, null, 2));
+      console.log('DEBUG CANTIDAD DE ROLLOS POR GRUPO:', reconstructedGroups.map(g => ({ articleId: g.articleId, providerId: g.providerId, cantidadRollos: g.rolls.length })));
 
       setArticleGroups(reconstructedGroups);
     } else {
