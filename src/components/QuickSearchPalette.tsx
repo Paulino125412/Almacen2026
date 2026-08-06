@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Client, Article, PackingList } from '../types';
-import { Search, User, Layers, FileText, X, Command } from 'lucide-react';
+import { Client, Article, PackingList, RollItem } from '../types';
+import { Search, User, Layers, FileText, X, Command, Box } from 'lucide-react';
 
 interface QuickSearchPaletteProps {
   isOpen: boolean;
@@ -8,13 +8,15 @@ interface QuickSearchPaletteProps {
   clients: Client[];
   articles: Article[];
   packingLists: PackingList[];
-  onSelectResult: (type: 'client' | 'article' | 'packing_list', item: any) => void;
+  inventory?: RollItem[];
+  onSelectResult: (type: 'client' | 'article' | 'packing_list' | 'inventory', item: any) => void;
 }
 
 interface GroupedResults {
   clients: Client[];
   articles: Article[];
   packingLists: PackingList[];
+  inventory: RollItem[];
 }
 
 export default function QuickSearchPalette({
@@ -23,6 +25,7 @@ export default function QuickSearchPalette({
   clients,
   articles,
   packingLists,
+  inventory = [],
   onSelectResult
 }: QuickSearchPaletteProps) {
   const [query, setQuery] = useState('');
@@ -84,14 +87,14 @@ export default function QuickSearchPalette({
   const filteredResults = React.useMemo((): GroupedResults => {
     const q = query.trim().toLowerCase();
     if (!q) {
-      return { clients: [], articles: [], packingLists: [] };
+      return { clients: [], articles: [], packingLists: [], inventory: [] };
     }
 
     const matchedClients = clients.filter(c => 
       c.name.toLowerCase().includes(q) || 
       (c.dni || '').toLowerCase().includes(q) ||
       (c.email || '').toLowerCase().includes(q)
-    ).slice(0, 5); // Limit results for high density clarity
+    ).slice(0, 5);
 
     const matchedArticles = articles.filter(a => 
       a.name.toLowerCase().includes(q) || 
@@ -99,20 +102,33 @@ export default function QuickSearchPalette({
     ).slice(0, 5);
 
     const matchedPackingLists = packingLists.filter(pl => 
-      pl.packingListNo.toLowerCase().includes(q)
-    ).slice(0, 8); // Packing lists can have more results as they are primary documents
+      pl.packingListNo.toLowerCase().includes(q) ||
+      (pl.guideNumber || '').toLowerCase().includes(q)
+    ).slice(0, 6);
+
+    const matchedInventory = inventory.filter(r => {
+      const art = articles.find(a => a.id === r.articleId)?.name || '';
+      return r.rollNumber.toLowerCase().includes(q) ||
+        (r.lot || '').toLowerCase().includes(q) ||
+        (r.partida || '').toLowerCase().includes(q) ||
+        (r.tono || '').toLowerCase().includes(q) ||
+        (r.status || '').toLowerCase().includes(q) ||
+        art.toLowerCase().includes(q);
+    }).slice(0, 6);
 
     return {
       clients: matchedClients,
       articles: matchedArticles,
-      packingLists: matchedPackingLists
+      packingLists: matchedPackingLists,
+      inventory: matchedInventory
     };
-  }, [query, clients, articles, packingLists]);
+  }, [query, clients, articles, packingLists, inventory]);
 
   // Flattened results for keyboard navigation index mapping
   const flatResults = React.useMemo(() => {
-    const list: { type: 'client' | 'article' | 'packing_list'; item: any }[] = [];
+    const list: { type: 'client' | 'article' | 'packing_list' | 'inventory'; item: any }[] = [];
     filteredResults.packingLists.forEach(pl => list.push({ type: 'packing_list', item: pl }));
+    filteredResults.inventory.forEach(r => list.push({ type: 'inventory', item: r }));
     filteredResults.clients.forEach(c => list.push({ type: 'client', item: c }));
     filteredResults.articles.forEach(a => list.push({ type: 'article', item: a }));
     return list;
@@ -242,6 +258,60 @@ export default function QuickSearchPalette({
                             isSelected ? 'text-white/60' : 'text-app-text/40'
                           }`}>
                             Historial
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Inventory Group */}
+              {filteredResults.inventory.length > 0 && (
+                <div>
+                  <h4 className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-app-text/45 bg-app-bg/30 rounded-md mb-1.5 flex items-center gap-1.5">
+                    <Box size={10} />
+                    Rollos en Inventario ({filteredResults.inventory.length})
+                  </h4>
+                  <div className="space-y-0.5">
+                    {filteredResults.inventory.map((r) => {
+                      const globalIndex = flatResults.findIndex(res => res.type === 'inventory' && res.item.id === r.id);
+                      const isSelected = globalIndex === activeIndex;
+                      const artName = articles.find(a => a.id === r.articleId)?.name || 'Artículo';
+
+                      return (
+                        <div
+                          key={r.id}
+                          onClick={() => {
+                            onSelectResult('inventory', r);
+                            onClose();
+                          }}
+                          className={`px-3 py-2.5 rounded-lg flex items-center justify-between transition cursor-pointer text-xs ${
+                            isSelected 
+                              ? 'bg-app-primary text-white' 
+                              : 'hover:bg-app-bg text-app-text'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Box size={13} className={isSelected ? 'text-white/70' : 'text-app-text/45'} />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-mono font-bold ${isSelected ? 'text-white' : 'text-app-text'}`}>
+                                  {r.rollNumber}
+                                </span>
+                                <span className={`text-[10px] truncate ${isSelected ? 'text-white/80' : 'text-app-text/70'}`}>
+                                  ({artName})
+                                </span>
+                              </div>
+                              <p className={`text-[10px] font-mono truncate ${isSelected ? 'text-white/70' : 'text-app-text/50'}`}>
+                                Metros: {r.currentMeters.toFixed(2)} m / Lote: {r.lot || 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={`text-[9px] font-bold tracking-widest uppercase shrink-0 ${
+                            isSelected ? 'text-white/60' : 'text-app-text/40'
+                          }`}>
+                            Inventario
                           </span>
                         </div>
                       );

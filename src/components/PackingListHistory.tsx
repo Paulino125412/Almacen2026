@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PackingList, Client, Seller, Provider, Article, RollItem } from '../types';
-import { db, deleteDoc, updateDoc } from '../firebase';
+import { db, deleteDoc, updateDoc, runTransaction } from '../firebase';
 import { doc } from 'firebase/firestore';
-import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, FileSpreadsheet, MessageCircle, Plus, MoreVertical } from 'lucide-react';
+import { Search, Filter, Printer, Trash2, Calendar, User, Eye, Layers, FileText, AlertTriangle, CheckCircle, RefreshCw, X, Edit2, FileSpreadsheet, MessageCircle, Mail, Plus, MoreVertical } from 'lucide-react';
 import { exportPackingListSummaryToExcel, exportPackingListFullDetailsToExcel, exportSinglePackingListToExcel } from '../utils/excelExport';
 import AlertBanner from './AlertBanner';
 
@@ -63,21 +63,62 @@ export default function PackingListHistory({
   const getProviderName = (id: string) => providers.find(p => p.id === id)?.name || id;
 
   const handleShareWhatsApp = (pl: PackingList) => {
-    const guideLine = pl.guideNumber && pl.guideNumber.trim() !== ''
-      ? `Packing List Guía N°: ${pl.guideNumber.trim()}`
-      : 'Packing List';
-
-    const clientName = getClientName(pl.clientId);
+    const clientObj = clients.find(c => c.id === pl.clientId);
+    const clientName = clientObj?.name || 'Cliente';
+    const clientPhone = clientObj?.phone ? clientObj.phone.replace(/[^0-9]/g, '') : '';
     const totalMeters = pl.items.reduce((acc, item) => acc + item.meters, 0);
 
-    const text = `${guideLine}
-Cliente: ${clientName}
-Fecha: ${pl.date}
-Total Rollos: ${pl.totalRollsOrCuts}
-Total Metros: ${totalMeters.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
+    const articleGroups: Record<string, number> = {};
+    pl.items.forEach(item => {
+      const artName = getArticleName(item.articleId);
+      articleGroups[artName] = (articleGroups[artName] || 0) + item.meters;
+    });
 
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+    const articleSummary = Object.entries(articleGroups)
+      .map(([art, meters]) => `  • *${art}:* ${meters.toFixed(2)} m`)
+      .join('\n');
+
+    const message = `📋 *PACKING LIST - DESPACHO N° ${pl.packingListNo}*
+----------------------------------------
+👤 *Cliente:* ${clientName}
+🚚 *Guía N°:* ${pl.guideNumber || 'Sin Guía'}
+📅 *Fecha:* ${pl.date}
+📍 *Destino:* ${pl.dispatchAddress || 'Almacén Central'}
+
+📦 *RESUMEN DE TELAS:*
+${articleSummary}
+
+📊 *TOTALES:*
+• *Rollos/Cortes:* ${pl.totalRollsOrCuts}
+• *Metros Totales:* ${totalMeters.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m
+
+_Generado automáticamente desde Sistema TexFlow Almacén_`;
+
+    const baseUrl = clientPhone ? `https://wa.me/${clientPhone}` : `https://wa.me/`;
+    window.open(`${baseUrl}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
+  const handleShareEmail = (pl: PackingList) => {
+    const clientObj = clients.find(c => c.id === pl.clientId);
+    const clientName = clientObj?.name || 'Cliente';
+    const clientEmail = clientObj?.email || '';
+    const totalMeters = pl.items.reduce((acc, item) => acc + item.meters, 0);
+
+    const articleGroups: Record<string, number> = {};
+    pl.items.forEach(item => {
+      const artName = getArticleName(item.articleId);
+      articleGroups[artName] = (articleGroups[artName] || 0) + item.meters;
+    });
+
+    const articleSummary = Object.entries(articleGroups)
+      .map(([art, meters]) => `- ${art}: ${meters.toFixed(2)} m`)
+      .join('\n');
+
+    const subject = `Packing List N° ${pl.packingListNo} - ${clientName}`;
+    const body = `Estimado(a) ${clientName},\n\nAdjuntamos la información correspondiente al Packing List N° ${pl.packingListNo}:\n\n- Fecha: ${pl.date}\n- Guía de Remisión N°: ${pl.guideNumber || 'S/N'}\n- Dirección de Despacho: ${pl.dispatchAddress || 'Almacén'}\n- Total Rollos/Cortes: ${pl.totalRollsOrCuts}\n- Total Metros: ${totalMeters.toFixed(2)} m\n\nDetalle de telas despachadas:\n${articleSummary}\n\nSi tiene alguna duda o consulta sobre su pedido, estamos a su disposición.\n\nAtentamente,\nEquipo de Despacho y Almacén`;
+
+    const mailtoUrl = `mailto:${encodeURIComponent(clientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoUrl, '_blank');
   };
 
   // 1. Export summary of filtered Packing Lists to Excel
@@ -164,43 +205,54 @@ Total Metros: ${totalMeters.toLocaleString('es-PE', { minimumFractionDigits: 2, 
     setDeleteError(null);
 
     try {
-      // Revert the discounted inventory
-      const updatedRolls: { [rollId: string]: { currentMeters: number; initialMeters: number } } = {};
+      await runTransaction(db, async (transaction) => {
+        // Collect all unique rollIds to revert
+        const rollIds = Array.from(new Set(deleteTarget.items.map(i => i.rollId).filter(Boolean))) as string[];
 
-      for (const item of deleteTarget.items) {
-        if (item.rollId) {
-          const rollId = item.rollId;
-          if (!updatedRolls[rollId]) {
-            const roll = inventory.find(r => r.id === rollId);
-            if (roll) {
-              updatedRolls[rollId] = {
-                currentMeters: roll.currentMeters,
-                initialMeters: roll.initialMeters
-              };
-            }
-          }
-          if (updatedRolls[rollId]) {
-            updatedRolls[rollId].currentMeters += item.meters;
+        // READ PHASE (Firestore rule: all reads before writes)
+        const rollSnaps: Record<string, any> = {};
+        for (const rollId of rollIds) {
+          const rollRef = doc(db, 'inventory', rollId);
+          const snap = await transaction.get(rollRef);
+          if (snap.exists()) {
+            rollSnaps[rollId] = snap.data();
+          } else {
+            const localRoll = inventory.find(r => r.id === rollId);
+            if (localRoll) rollSnaps[rollId] = localRoll;
           }
         }
-      }
 
-      for (const rollId of Object.keys(updatedRolls)) {
-        const { currentMeters, initialMeters } = updatedRolls[rollId];
-        const newStatus = currentMeters >= initialMeters ? 'available' : 'partially_sold';
-        await updateDoc(doc(db, 'inventory', rollId), {
-          currentMeters,
-          status: newStatus
-        });
-      }
+        // WRITE PHASE: Delete the packing list doc
+        const plRef = doc(db, 'packinglists', deleteTarget.id);
+        transaction.delete(plRef);
 
-      // Explicitly trigger the deletion from Firestore/LocalStorage wrappers
-      await deleteDoc(doc(db, 'packinglists', deleteTarget.id));
-      
+        // Revert inventory roll stock
+        for (const rollId of rollIds) {
+          const baseData = rollSnaps[rollId];
+          if (!baseData) continue;
+
+          const revertedMeters = deleteTarget.items
+            .filter(i => i.rollId === rollId)
+            .reduce((sum, item) => sum + item.meters, 0);
+
+          const initialMeters = Number(baseData.initialMeters || baseData.currentMeters || 0);
+          const currentMeters = Number(baseData.currentMeters || 0);
+          const nextMeters = currentMeters + revertedMeters;
+          const status = nextMeters >= initialMeters ? 'available' : 'partially_sold';
+
+          const rollRef = doc(db, 'inventory', rollId);
+          transaction.update(rollRef, {
+            currentMeters: nextMeters,
+            status,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      });
+
       // Let the main layout trigger database sync
       await onRefresh();
       
-      setDeleteSuccess(`El packing list "${deleteTarget.packingListNo}" se eliminó de manera permanente y exitosa.`);
+      setDeleteSuccess(`El packing list "${deleteTarget.packingListNo}" se eliminó de manera permanente y atómica.`);
       setTimeout(() => {
         setDeleteTarget(null);
         setDeleteSuccess(null);

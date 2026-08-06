@@ -13,6 +13,7 @@ interface InventoryManagerProps {
   articles: Article[];
   onRefresh: () => Promise<void>;
   currentOperator: string;
+  initialSearchTerm?: string;
 }
 
 export default function InventoryManager({
@@ -20,9 +21,16 @@ export default function InventoryManager({
   providers,
   articles,
   onRefresh,
-  currentOperator
+  currentOperator,
+  initialSearchTerm = ''
 }: InventoryManagerProps) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+
+  React.useEffect(() => {
+    if (initialSearchTerm) {
+      setSearchTerm(initialSearchTerm);
+    }
+  }, [initialSearchTerm]);
   const [filterProviderId, setFilterProviderId] = useState('all');
   const [filterArticleId, setFilterArticleId] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -1085,7 +1093,7 @@ export default function InventoryManager({
                 <button
                   onClick={handleConfirmDeleteRoll}
                   disabled={isDeletingRoll}
-                  className="px-3 py-1.5 bg-red-650 hover:bg-red-750 text-white rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   {isDeletingRoll ? (
                     <>

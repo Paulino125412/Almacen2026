@@ -11,6 +11,7 @@ import {
   deleteDoc as firestoreDeleteDoc,
   doc, 
   setDoc,
+  runTransaction as firestoreRunTransaction,
   serverTimestamp 
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -130,6 +131,68 @@ export async function deleteDoc(reference: any) {
       return await firestoreDeleteDoc(reference);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, reference.path || 'unknown');
+      throw error;
+    }
+  }
+}
+
+export async function runTransaction(dbRef: any, updateFunction: (transaction: any) => Promise<any>) {
+  if (getLocalMode()) {
+    const localTransaction = {
+      get: async (docRef: any) => {
+        const id = docRef.id;
+        const path = docRef.path || (docRef._path ? docRef._path.segments.join('/') : '');
+        const segments = path.split('/');
+        const collectionName = segments[segments.length - 2] || 'unknown';
+        const localData = getLocalStorageCollection(collectionName);
+        const item = localData.find((i: any) => i.id === id);
+        return {
+          exists: () => !!item,
+          data: () => item
+        };
+      },
+      set: (docRef: any, data: any) => {
+        const id = docRef.id;
+        const path = docRef.path || (docRef._path ? docRef._path.segments.join('/') : '');
+        const segments = path.split('/');
+        const collectionName = segments[segments.length - 2] || segments[0] || 'unknown';
+        const localData = getLocalStorageCollection(collectionName);
+        const index = localData.findIndex((i: any) => i.id === id);
+        if (index !== -1) {
+          localData[index] = { ...data };
+        } else {
+          localData.push({ ...data, id });
+        }
+        setLocalStorageCollection(collectionName, localData);
+      },
+      update: (docRef: any, data: any) => {
+        const id = docRef.id;
+        const path = docRef.path || (docRef._path ? docRef._path.segments.join('/') : '');
+        const segments = path.split('/');
+        const collectionName = segments[segments.length - 2] || 'unknown';
+        const localData = getLocalStorageCollection(collectionName);
+        const index = localData.findIndex((i: any) => i.id === id);
+        if (index !== -1) {
+          localData[index] = { ...localData[index], ...data, updatedAt: new Date().toISOString() };
+          setLocalStorageCollection(collectionName, localData);
+        }
+      },
+      delete: (docRef: any) => {
+        const id = docRef.id;
+        const path = docRef.path || (docRef._path ? docRef._path.segments.join('/') : '');
+        const segments = path.split('/');
+        const collectionName = segments[segments.length - 2] || 'unknown';
+        const localData = getLocalStorageCollection(collectionName);
+        const updated = localData.filter((i: any) => i.id !== id);
+        setLocalStorageCollection(collectionName, updated);
+      }
+    };
+    return await updateFunction(localTransaction);
+  } else {
+    try {
+      return await firestoreRunTransaction(dbRef, updateFunction);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'transaction');
       throw error;
     }
   }

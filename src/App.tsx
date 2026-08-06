@@ -80,12 +80,14 @@ export default function App() {
   const [catalogInitialTab, setCatalogInitialTab] = useState<'clients' | 'articles' | 'providers' | 'sellers' | undefined>(undefined);
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
   const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [inventorySearchQuery, setInventorySearchQuery] = useState('');
 
   // Handle manual sidebar tab changes (clears search query preset)
   const handleTabChange = (tab: AppTab) => {
     setCatalogInitialTab(undefined);
     setCatalogSearchQuery('');
     setHistorySearchQuery('');
+    setInventorySearchQuery('');
     setActiveTab(tab);
   };
 
@@ -105,7 +107,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleSelectSearchResult = (type: 'client' | 'article' | 'packing_list', item: any) => {
+  const handleSelectSearchResult = (type: 'client' | 'article' | 'packing_list' | 'inventory', item: any) => {
     if (type === 'client') {
       setCatalogInitialTab('clients');
       setCatalogSearchQuery(item.name);
@@ -117,6 +119,9 @@ export default function App() {
     } else if (type === 'packing_list') {
       setHistorySearchQuery(item.packingListNo);
       setActiveTab('history');
+    } else if (type === 'inventory') {
+      setInventorySearchQuery(item.rollNumber);
+      setActiveTab('inventory');
     }
   };
 
@@ -418,6 +423,7 @@ export default function App() {
             articles={articles}
             onRefresh={handleForceRefresh}
             currentOperator={currentOperator}
+            initialSearchTerm={inventorySearchQuery}
           />
         );
       case 'catalogs':
@@ -740,6 +746,7 @@ export default function App() {
         clients={clients}
         articles={articles}
         packingLists={packingLists}
+        inventory={inventory}
         onSelectResult={handleSelectSearchResult}
       />
 
