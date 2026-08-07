@@ -55,23 +55,70 @@ async function fetchHtmlSafe(url: string): Promise<string | null> {
 // Helper to extract clean full name from any DNI API response structure
 function extractDniName(data: any): string | null {
   if (!data) return null;
-  const t = data.data || data.result || data.payload || data;
+  const item = Array.isArray(data) ? data[0] : data;
+  if (!item) return null;
+  const t = item.data || item.result || item.payload || item.response || item;
 
   // Pattern 1: Separate names and surnames
-  if (t.nombres) {
-    const first = String(t.nombres).trim();
-    const pat = String(t.apellidoPaterno || t.apellido_paterno || t.paterno || '').trim();
-    const mat = String(t.apellidoMaterno || t.apellido_materno || t.materno || '').trim();
-    const full = `${first} ${pat} ${mat}`.trim();
+  const first = t.nombres || t.nombre || t.first_name || t.given_name || t.FirstName || '';
+  const pat = t.apellidoPaterno || t.apellido_paterno || t.paterno || t.last_name || t.paternal_surname || t.PaternalSurname || '';
+  const mat = t.apellidoMaterno || t.apellido_materno || t.materno || t.maternal_surname || t.MaternalSurname || '';
+
+  if (first && (pat || mat)) {
+    const full = `${String(first).trim()} ${String(pat).trim()} ${String(mat).trim()}`.trim();
+    if (full.length > 3) return full;
+  }
+
+  if (t.nombres && t.apellidos) {
+    const full = `${String(t.nombres).trim()} ${String(t.apellidos).trim()}`.trim();
     if (full.length > 3) return full;
   }
 
   // Pattern 2: Single name string fields
-  const single = t.nombre || t.full_name || t.nombre_completo || t.razonSocial || t.resultado || t.nombres_completos;
+  const single = t.nombre_completo || t.full_name || t.nombres_completos || t.razonSocial || t.nombre || t.resultado || t.cliente || t.ciudadano || t.FullName;
   if (single && typeof single === 'string' && single.trim().length > 3) {
     return single.trim();
   }
 
+  return null;
+}
+
+// Scrape eldni.com for Peruvian DNI names
+async function scrapeElDni(cleanDni: string): Promise<string | null> {
+  try {
+    const url = `https://eldni.com/pe/buscar-por-dni`;
+    const params = new URLSearchParams({ dni: cleanDni, buscar: 'buscar' });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://eldni.com/pe/buscar-por-dni'
+      },
+      body: params.toString(),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (!resp.ok) return null;
+    const html = await resp.text();
+
+    const matches = html.match(/<td[^>]*>([\s\S]*?)<\/td>/gi);
+    if (matches && matches.length >= 3) {
+      const texts = matches.map(m => m.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+      const filtered = texts.filter(t => 
+        !['dni', 'nombres', 'apellido paterno', 'apellido materno', 'buscar', 'resultado', 'acción', 'opciones'].includes(t.toLowerCase()) &&
+        !t.match(/^\d{8}$/) &&
+        t.length > 1
+      );
+      if (filtered.length >= 2) {
+        return filtered.slice(0, 3).join(' ');
+      }
+    }
+  } catch (e) {
+    console.warn('elDni scraper error:', e);
+  }
   return null;
 }
 
@@ -175,7 +222,18 @@ async function lookupDni(dni: string) {
     }
   }
 
-  // Method 2: Public RENIEC / DNI APIs
+  // Method 2: eldni.com Direct Scraper
+  const elDniName = await scrapeElDni(cleanDni);
+  if (elDniName) {
+    return {
+      success: true,
+      name: elDniName,
+      address: '',
+      source: 'RENIEC Database'
+    };
+  }
+
+  // Method 3: Public RENIEC / DNI JSON APIs
   const endpoints = [
     `https://api.apis.net.pe/v1/dni?numero=${cleanDni}`,
     `https://api.apis.net.pe/v2/reniec/dni?numero=${cleanDni}`,
@@ -189,7 +247,10 @@ async function lookupDni(dni: string) {
     `https://api.consultasperu.com/api/v1/dni?dni=${cleanDni}`,
     `https://api.reniec.cloud/dni/${cleanDni}`,
     `https://peruapi.com/api/v1/dni/${cleanDni}`,
-    `https://consultaqrr.sutran.gob.pe/api/dni/${cleanDni}`
+    `https://consultaqrr.sutran.gob.pe/api/dni/${cleanDni}`,
+    `https://api.dnis.pe/dni/${cleanDni}`,
+    `https://consultas.boletape.com/api/dni/${cleanDni}`,
+    `https://dniruc.dev/api/dni/${cleanDni}`
   ];
 
   for (const url of endpoints) {
@@ -205,7 +266,7 @@ async function lookupDni(dni: string) {
     }
   }
 
-  // Method 3: Fallback JNE / ONPE / PeruDevs public endpoints
+  // Method 4: Fallback JNE / ONPE / PeruDevs public endpoints
   try {
     const jneData = await fetchJsonSafe(`https://api.perudevs.com/api/v1/dni/simple?document=${cleanDni}`);
     const jneName = extractDniName(jneData);

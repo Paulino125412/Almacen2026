@@ -95,27 +95,42 @@ export async function lookupRucOrDni(number: string): Promise<SunatQueryResult> 
     };
   }
 
-  // DNI 8 digits
-  try {
-    const proxyDniUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api.apis.net.pe/v2/reniec/dni?numero=${cleanNumber}`)}`;
-    const response = await fetch(proxyDniUrl);
-    if (response.ok) {
-      const data = await response.json();
-      const fullName = `${data.nombres || ''} ${data.apellidoPaterno || ''} ${data.apellidoMaterno || ''}`.trim();
-      if (fullName) {
-        return {
-          success: true,
-          name: fullName,
-          address: ''
-        };
+  // DNI 8 digits fallback
+  const clientDniEndpoints = [
+    `https://api.apis.net.pe/v1/dni?numero=${cleanNumber}`,
+    `https://api.apis.net.pe/v2/reniec/dni?numero=${cleanNumber}`,
+    `https://dniruc.apisperu.com/api/v1/dni/${cleanNumber}`,
+    `https://api.atypical.pe/dni/${cleanNumber}`,
+    `https://consultaruc.isunat.com/api/dni/${cleanNumber}`,
+    `https://api.factiliza.com/peru/v1/dni/info/${cleanNumber}`
+  ];
+
+  for (const ep of clientDniEndpoints) {
+    try {
+      const proxyDniUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ep)}`;
+      const response = await fetch(proxyDniUrl);
+      if (response.ok) {
+        const data = await response.json();
+        const t = data.data || data.result || data;
+        const first = t.nombres || t.nombre || t.first_name || '';
+        const pat = t.apellidoPaterno || t.apellido_paterno || t.paterno || '';
+        const mat = t.apellidoMaterno || t.apellido_materno || t.materno || '';
+        const full = `${first} ${pat} ${mat}`.trim() || t.nombre_completo || t.full_name || t.nombre || t.razonSocial;
+        if (full && full.length > 3) {
+          return {
+            success: true,
+            name: String(full).trim(),
+            address: ''
+          };
+        }
       }
+    } catch (e) {
+      console.warn('Client DNI proxy fallback error:', e);
     }
-  } catch (e) {
-    console.warn('Client DNI proxy fallback error:', e);
   }
 
   return {
     success: false,
-    error: 'No se encontraron datos en RENIEC para el DNI ingresado. Ingrese el nombre manualmente.'
+    error: 'No se encontraron datos automáticos en RENIEC/SUNAT para este DNI. Ingrese el nombre manualmente.'
   };
 }
