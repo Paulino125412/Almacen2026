@@ -50,7 +50,8 @@ export default function ClientSellerSelector({
         additionalFields={[
           { key: 'dni', label: 'DNI / RUC *', placeholder: 'Ingrese DNI o RUC (Obligatorio)', required: true },
           { key: 'phone', label: 'Teléfono', placeholder: 'Ingrese teléfono (Opcional)' },
-          { key: 'address', label: 'Dirección', placeholder: 'Ingrese dirección (Opcional)' }
+          { key: 'fiscalAddress', label: 'Dirección Fiscal', placeholder: 'Dirección SUNAT (Opcional)' },
+          { key: 'address', label: 'Dirección de Entrega', placeholder: 'Lugar de entrega / Despacho (Opcional)' }
         ]}
       />
 

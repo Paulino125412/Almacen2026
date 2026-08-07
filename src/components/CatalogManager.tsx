@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Client, Seller, Provider, Article, PackingList } from '../types';
 import { db, addDoc, updateDoc, deleteDoc } from '../firebase';
 import { collection, doc } from 'firebase/firestore';
-import { Plus, Edit2, Trash2, Users, Briefcase, Truck, Layers, Check, X, Search, FileSpreadsheet } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Briefcase, Truck, Layers, Check, X, Search, FileSpreadsheet, Building, Loader2 } from 'lucide-react';
 import { exportCatalogToExcel } from '../utils/excelExport';
 import AlertBanner from './AlertBanner';
+import { lookupRucOrDni } from '../lib/sunat';
 
 interface CatalogManagerProps {
   clients: Client[];
@@ -64,6 +65,7 @@ export default function CatalogManager({
   const [provHasWeight, setProvHasWeight] = useState(false);
 
   // Article Form
+  const [artCode, setArtCode] = useState('');
   const [artName, setArtName] = useState('');
   const [artDesc, setArtDesc] = useState('');
   const [artUnit, setArtUnit] = useState('metros');
@@ -74,7 +76,35 @@ export default function CatalogManager({
   const [cliDni, setCliDni] = useState('');
   const [cliEmail, setCliEmail] = useState('');
   const [cliPhone, setCliPhone] = useState('');
+  const [cliFiscalAddress, setCliFiscalAddress] = useState('');
   const [cliAddress, setCliAddress] = useState('');
+  const [cliContactPerson, setCliContactPerson] = useState('');
+  const [loadingSunat, setLoadingSunat] = useState(false);
+  const [sunatStatusMsg, setSunatStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleSunatLookupClient = async () => {
+    if (!cliDni.trim()) {
+      setSunatStatusMsg({ type: 'error', text: 'Ingrese un número de RUC (11 dígitos) o DNI (8 dígitos).' });
+      return;
+    }
+    setLoadingSunat(true);
+    setSunatStatusMsg(null);
+    const result = await lookupRucOrDni(cliDni);
+    setLoadingSunat(false);
+    if (result.success && result.name) {
+      setCliName(result.name);
+      if (result.address) {
+        setCliFiscalAddress(result.address);
+        // Leave cliAddress (Dirección de Entrega) empty by default so it can be filled separately!
+      }
+      setSunatStatusMsg({ 
+        type: 'success', 
+        text: `Consultado con éxito: ${result.name}${result.address ? ' | Dir. Fiscal: ' + result.address : ''}` 
+      });
+    } else {
+      setSunatStatusMsg({ type: 'error', text: result.error || 'No se obtuvieron datos automáticos de SUNAT / RENIEC.' });
+    }
+  };
 
   // Seller Form
   const [selName, setSelName] = useState('');
@@ -97,6 +127,7 @@ export default function CatalogManager({
     setProvHasWeight(false);
 
     // Articles
+    setArtCode('');
     setArtName('');
     setArtDesc('');
     setArtUnit('metros');
@@ -107,7 +138,9 @@ export default function CatalogManager({
     setCliDni('');
     setCliEmail('');
     setCliPhone('');
+    setCliFiscalAddress('');
     setCliAddress('');
+    setCliContactPerson('');
 
     // Sellers
     setSelName('');
@@ -126,6 +159,7 @@ export default function CatalogManager({
       setProvHasWidth(item.hasWidth ?? false);
       setProvHasWeight(item.hasWeight ?? false);
     } else if (tab === 'articles') {
+      setArtCode(item.code || '');
       setArtName(item.name);
       setArtDesc(item.description);
       setArtUnit(item.unit);
@@ -135,7 +169,9 @@ export default function CatalogManager({
       setCliDni(item.dni);
       setCliEmail(item.email);
       setCliPhone(item.phone);
-      setCliAddress(item.address);
+      setCliFiscalAddress(item.fiscalAddress || '');
+      setCliAddress(item.address || '');
+      setCliContactPerson(item.contactPerson || '');
     } else if (tab === 'sellers') {
       setSelName(item.name);
       setSelEmail(item.email);
@@ -214,6 +250,7 @@ export default function CatalogManager({
       
       else if (activeTab === 'articles') {
         const articleData = {
+          code: artCode.trim(),
           name: artName,
           description: artDesc,
           unit: artUnit,
@@ -236,7 +273,9 @@ export default function CatalogManager({
           dni: cliDni,
           email: cliEmail,
           phone: cliPhone,
-          address: cliAddress
+          fiscalAddress: cliFiscalAddress,
+          address: cliAddress,
+          contactPerson: cliContactPerson
         };
 
         if (editingId) {
@@ -389,6 +428,7 @@ export default function CatalogManager({
         if (!q) return true;
         const prov = providers.find(p => p.id === a.providerId);
         return (
+          (a.code || '').toLowerCase().includes(q) ||
           a.name.toLowerCase().includes(q) ||
           (a.description || '').toLowerCase().includes(q) ||
           (prov?.name || '').toLowerCase().includes(q)
@@ -583,6 +623,17 @@ export default function CatalogManager({
             {activeTab === 'articles' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
+                  <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">Código (Opcional)</label>
+                  <input
+                    type="text"
+                    value={artCode}
+                    onChange={e => setArtCode(e.target.value)}
+                    placeholder="Ej. DEN-1408"
+                    className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary font-mono"
+                    id="input-art-code"
+                  />
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">Nombre del Artículo (Tela) *</label>
                   <input
                     type="text"
@@ -643,22 +694,50 @@ export default function CatalogManager({
                     required
                     value={cliName}
                     onChange={e => setCliName(e.target.value)}
-                    placeholder="Ej. Confecciones Gamarra S.A.C."
+                    placeholder="Ej. Confecciones Gamarra S.A.C. / Juan Pérez"
                     className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
                     id="input-cli-name"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">DNI / RUC *</label>
-                  <input
-                    type="text"
-                    required
-                    value={cliDni}
-                    onChange={e => setCliDni(e.target.value)}
-                    placeholder="DNI de 8 dígitos o RUC de 11 dígitos"
-                    className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
-                    id="input-cli-dni"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-app-text/80 uppercase tracking-wider">DNI / RUC *</label>
+                    <button
+                      type="button"
+                      onClick={handleSunatLookupClient}
+                      disabled={loadingSunat || !cliDni.trim()}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-app-primary hover:underline disabled:opacity-50 cursor-pointer"
+                      title="Consultar Razón Social / Nombres y Dirección Fiscal en SUNAT / RENIEC"
+                    >
+                      {loadingSunat ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" />
+                          Consultando...
+                        </>
+                      ) : (
+                        <>
+                          <Building size={12} />
+                          Consultar SUNAT / RENIEC
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      required
+                      value={cliDni}
+                      onChange={e => setCliDni(e.target.value)}
+                      placeholder="DNI (8 dígitos) o RUC (11 dígitos)"
+                      className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs font-mono focus:outline-hidden focus:ring-1 focus:ring-app-primary"
+                      id="input-cli-dni"
+                    />
+                  </div>
+                  {sunatStatusMsg && (
+                    <div className={`mt-1 text-[10px] font-medium p-1 rounded ${sunatStatusMsg.type === 'success' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-500'}`}>
+                      {sunatStatusMsg.text}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">Correo Electrónico</label>
@@ -680,13 +759,44 @@ export default function CatalogManager({
                     className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
                   />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">Dirección de Entrega / Despacho</label>
+                <div>
+                  <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">Dirección Fiscal (SUNAT / Domicilio)</label>
+                  <input
+                    type="text"
+                    value={cliFiscalAddress}
+                    onChange={e => setCliFiscalAddress(e.target.value)}
+                    placeholder="Dirección fiscal registrada en SUNAT"
+                    className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-app-text/80 uppercase tracking-wider">Dirección de Entrega / Despacho</label>
+                    {cliFiscalAddress && (
+                      <button
+                        type="button"
+                        onClick={() => setCliAddress(cliFiscalAddress)}
+                        className="text-[10px] text-app-primary hover:underline font-bold cursor-pointer"
+                      >
+                        Copiar Dir. Fiscal
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={cliAddress}
                     onChange={e => setCliAddress(e.target.value)}
-                    placeholder="Av, Calle, Jr, Número, Distrito, Provincia"
+                    placeholder="Lugar de entrega, agencia o almacén (En blanco por defecto)"
+                    className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">Nombre del Encargado / Contacto de Despacho</label>
+                  <input
+                    type="text"
+                    value={cliContactPerson}
+                    onChange={e => setCliContactPerson(e.target.value)}
+                    placeholder="Ej. Juan Pérez (Encargado de Recepción)"
                     className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
                   />
                 </div>
@@ -782,7 +892,7 @@ export default function CatalogManager({
                   type="text"
                   placeholder={`Buscar ${
                     activeTab === 'providers' ? 'proveedor...' :
-                    activeTab === 'articles' ? 'tela o descripción...' :
+                    activeTab === 'articles' ? 'código, tela o descripción...' :
                     activeTab === 'clients' ? 'cliente, RUC/DNI...' : 'vendedor...'
                   }`}
                   value={searchQuery}
@@ -928,6 +1038,7 @@ export default function CatalogManager({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-app-bg/40 border-b border-app-border text-xs text-app-text/60 uppercase font-semibold">
+                    <th className="p-3">Código</th>
                     <th className="p-3">Nombre Tela / Artículo</th>
                     <th className="p-3">Descripción / Gramaje</th>
                     <th className="p-3">Proveedor Asociado</th>
@@ -941,13 +1052,14 @@ export default function CatalogManager({
                     if (!q) return true;
                     const prov = providers.find(p => p.id === a.providerId);
                     return (
+                      (a.code || '').toLowerCase().includes(q) ||
                       a.name.toLowerCase().includes(q) ||
                       (a.description || '').toLowerCase().includes(q) ||
                       (prov?.name || '').toLowerCase().includes(q)
                     );
                   }).length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-10 text-center">
+                      <td colSpan={6} className="p-10 text-center">
                         <div className="max-w-sm mx-auto flex flex-col items-center justify-center text-center">
                           <div className="w-14 h-14 rounded-full bg-app-bg border border-app-border flex items-center justify-center text-app-primary mb-3 shadow-xs">
                             {articles.length === 0 ? <Layers size={28} /> : <Search size={28} className="text-app-text/40" />}
@@ -963,7 +1075,7 @@ export default function CatalogManager({
                           {articles.length === 0 ? (
                             <button
                               onClick={() => {
-                                const el = document.getElementById('input-art-name');
+                                const el = document.getElementById('input-art-code') || document.getElementById('input-art-name');
                                 el?.focus();
                               }}
                               className="px-3.5 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white font-bold rounded text-xs flex items-center gap-1.5 transition shadow-xs uppercase tracking-wider cursor-pointer"
@@ -988,6 +1100,7 @@ export default function CatalogManager({
                       if (!q) return true;
                       const prov = providers.find(p => p.id === a.providerId);
                       return (
+                        (a.code || '').toLowerCase().includes(q) ||
                         a.name.toLowerCase().includes(q) ||
                         (a.description || '').toLowerCase().includes(q) ||
                         (prov?.name || '').toLowerCase().includes(q)
@@ -996,6 +1109,7 @@ export default function CatalogManager({
                       const prov = providers.find(p => p.id === a.providerId);
                       return (
                         <tr key={a.id} className="hover:bg-app-bg/40 border-b border-app-border/60 text-xs">
+                          <td className="p-3 font-mono font-bold text-app-primary">{a.code || '-'}</td>
                           <td className="p-3 font-semibold text-app-text">{a.name}</td>
                           <td className="p-3 text-app-text/60">{a.description || '-'}</td>
                           <td className="p-3 font-medium text-app-text/90">{prov?.name || 'Proveedor Eliminado'}</td>
@@ -1035,6 +1149,7 @@ export default function CatalogManager({
                     <th className="p-3">Cliente / Razón Social</th>
                     <th className="p-3">DNI / RUC</th>
                     <th className="p-3">Contacto</th>
+                    <th className="p-3">Dirección Fiscal</th>
                     <th className="p-3">Dirección de Despacho</th>
                     <th className="p-3 text-right">Acciones</th>
                   </tr>
@@ -1048,11 +1163,12 @@ export default function CatalogManager({
                       (c.dni || '').toLowerCase().includes(q) ||
                       (c.email || '').toLowerCase().includes(q) ||
                       (c.phone || '').toLowerCase().includes(q) ||
+                      (c.fiscalAddress || '').toLowerCase().includes(q) ||
                       (c.address || '').toLowerCase().includes(q)
                     );
                   }).length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-10 text-center">
+                      <td colSpan={6} className="p-10 text-center">
                         <div className="max-w-sm mx-auto flex flex-col items-center justify-center text-center">
                           <div className="w-14 h-14 rounded-full bg-app-bg border border-app-border flex items-center justify-center text-app-primary mb-3 shadow-xs">
                             {clients.length === 0 ? <Users size={28} /> : <Search size={28} className="text-app-text/40" />}
@@ -1096,6 +1212,8 @@ export default function CatalogManager({
                         (c.dni || '').toLowerCase().includes(q) ||
                         (c.email || '').toLowerCase().includes(q) ||
                         (c.phone || '').toLowerCase().includes(q) ||
+                        (c.contactPerson || '').toLowerCase().includes(q) ||
+                        (c.fiscalAddress || '').toLowerCase().includes(q) ||
                         (c.address || '').toLowerCase().includes(q)
                       );
                     }).map(c => (
@@ -1103,10 +1221,12 @@ export default function CatalogManager({
                         <td className="p-3 font-semibold text-app-text">{c.name}</td>
                         <td className="p-3 font-mono text-xs text-app-text/90">{c.dni}</td>
                         <td className="p-3 text-xs">
-                          {c.email && <div className="text-app-text/60 font-mono">{c.email}</div>}
-                          {c.phone && <div className="text-app-text/50">{c.phone}</div>}
+                          {c.contactPerson && <div className="text-app-primary font-bold">{c.contactPerson}</div>}
+                          {c.phone && <div className="text-app-text/60 font-mono">{c.phone}</div>}
+                          {c.email && <div className="text-app-text/40 text-[10px] truncate">{c.email}</div>}
                         </td>
-                        <td className="p-3 text-xs text-app-text/60 max-w-xs truncate" title={c.address}>{c.address || '-'}</td>
+                        <td className="p-3 text-xs text-app-text/70 max-w-[200px] truncate" title={c.fiscalAddress}>{c.fiscalAddress || '-'}</td>
+                        <td className="p-3 text-xs text-app-text/60 max-w-[200px] truncate" title={c.address}>{c.address || '-'}</td>
                         <td className="p-3 text-right">
                           <div className="flex justify-end gap-1.5">
                             <button

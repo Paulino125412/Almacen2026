@@ -441,6 +441,7 @@ export default function PackingListForm({
         dni: fields.dni || '',
         email: fields.email || '',
         phone: fields.phone || '',
+        fiscalAddress: fields.fiscalAddress || '',
         address: fields.address || '',
         createdAt: new Date().toISOString()
       };

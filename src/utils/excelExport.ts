@@ -236,8 +236,8 @@ export async function exportCatalogToExcel(
   } else if (type === 'articles') {
     sheetName = 'Artículos';
     title = 'Catálogo de Artículos y Telas';
-    headers = ['N°', 'Nombre Tela / Artículo', 'Descripción / Gramaje', 'Proveedor Asociado', 'Unidad Medida'];
-    alignments = ['center', 'left', 'left', 'left', 'center'];
+    headers = ['N°', 'Código', 'Nombre Tela / Artículo', 'Descripción / Gramaje', 'Proveedor Asociado', 'Unidad Medida'];
+    alignments = ['center', 'center', 'left', 'left', 'left', 'center'];
   } else if (type === 'providers') {
     sheetName = 'Proveedores';
     title = 'Catálogo de Proveedores Dinámicos';
@@ -264,7 +264,7 @@ export async function exportCatalogToExcel(
       row.values = [index + 1, item.name || '', item.dni || '-', item.email || '-', item.phone || '-', item.address || '-'];
     } else if (type === 'articles') {
       const provName = extraContext?.providers?.find(p => p.id === item.providerId)?.name || 'N/A';
-      row.values = [index + 1, item.name || '', item.description || '-', provName, item.unit || 'metros'];
+      row.values = [index + 1, item.code || '-', item.name || '', item.description || '-', provName, item.unit || 'metros'];
     } else if (type === 'providers') {
       row.values = [
         index + 1,

@@ -154,5 +154,10 @@ service cloud.firestore {
         && incoming(request).appVersion.size() <= 20;
       allow delete: if isValidId(packingListId);
     }
+
+    // 8. Sales Orders (Ficha de Venta / Orden de Venta)
+    match /sales_orders/{orderId} {
+      allow read, write: if true;
+    }
   }
 }

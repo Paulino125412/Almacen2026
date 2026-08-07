@@ -30,7 +30,8 @@ import {
   Sun,
   Moon,
   Search,
-  Download
+  Download,
+  ClipboardList
 } from 'lucide-react';
 
 // Components
@@ -38,11 +39,12 @@ import PackingListForm from './components/PackingListForm';
 import PackingListHistory from './components/PackingListHistory';
 import InventoryManager from './components/InventoryManager';
 import CatalogManager from './components/CatalogManager';
+import SalesOrderManager from './components/SalesOrderManager';
 import AlertBanner from './components/AlertBanner';
 import PrintPackingList from './components/PrintPackingList';
 import QuickSearchPalette from './components/QuickSearchPalette';
 
-type AppTab = 'generate' | 'history' | 'inventory' | 'catalogs';
+type AppTab = 'generate' | 'history' | 'inventory' | 'catalogs' | 'sales_order';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('generate');
@@ -439,6 +441,15 @@ export default function App() {
             initialSearchQuery={catalogSearchQuery}
           />
         );
+      case 'sales_order':
+        return (
+          <SalesOrderManager
+            clients={clients}
+            sellers={sellers}
+            articles={articles}
+            currentOperator={currentOperator}
+          />
+        );
       default:
         return null;
     }
@@ -571,6 +582,19 @@ export default function App() {
           >
             <Settings size={14} className={activeTab === 'catalogs' ? 'text-white' : 'text-app-text/50'} />
             Configuración y Catálogos
+          </button>
+
+          <button
+            onClick={() => handleTabChange('sales_order')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-xs font-medium transition duration-150 cursor-pointer ${
+              activeTab === 'sales_order'
+                ? 'bg-app-primary text-white border-l-2 border-app-primary font-semibold shadow-xs'
+                : 'text-app-text/60 hover:text-app-text hover:bg-app-primary/10'
+            }`}
+            id="tab-sales-order"
+          >
+            <ClipboardList size={14} className={activeTab === 'sales_order' ? 'text-white' : 'text-app-text/50'} />
+            Crear Ficha de Venta
           </button>
         </nav>
 

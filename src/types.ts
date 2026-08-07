@@ -12,6 +12,7 @@ export interface Provider {
 
 export interface Article {
   id: string;
+  code?: string;
   name: string;
   description: string;
   unit: string;
@@ -26,6 +27,8 @@ export interface Client {
   email: string;
   phone: string;
   address: string;
+  fiscalAddress?: string;
+  contactPerson?: string;
   createdAt: string;
 }
 
@@ -90,5 +93,50 @@ export interface PackingList {
     signaturePresent: boolean;
   };
   createdAt: string;
+  appVersion?: string;
+}
+
+export interface SalesOrderItem {
+  id: string;
+  articleId?: string;
+  code: string;
+  description: string;
+  unitPrice: number;
+  requestedQty: number;
+  dispatchedQty: number;
+  totalAmount: number;
+}
+
+export interface SalesOrder {
+  id: string;
+  orderNo: string;
+  sellerId?: string;
+  sellerName: string;
+  date: string;
+  clientId?: string;
+  clientName: string;
+  clientRucDni: string;
+  fiscalAddress: string;
+  dispatchContactName: string;
+  dispatchContactPhone: string;
+  dispatchAddress: string;
+  floorNumber: string;
+  dispatchDate: string;
+  dispatchTime: string;
+  paymentMethod: string;
+  billedAmount: number;
+  billingName: string;
+  billingRucDni: string;
+  pendingAmount: number;
+  observations: string;
+  dealerNote?: string;
+  bolivarNote?: string;
+  dealerFactura?: string;
+  bolivarFactura?: string;
+  pendingBillingInfo?: string;
+  items: SalesOrderItem[];
+  totalAmount: number;
+  createdAt: string;
+  updatedAt?: string;
   appVersion?: string;
 }
