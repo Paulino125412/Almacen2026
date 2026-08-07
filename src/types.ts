@@ -134,6 +134,7 @@ export interface SalesOrder {
   dealerFactura?: string;
   bolivarFactura?: string;
   pendingBillingInfo?: string;
+  bolivarPendingInfo?: string;
   items: SalesOrderItem[];
   totalAmount: number;
   createdAt: string;

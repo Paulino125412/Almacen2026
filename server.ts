@@ -86,18 +86,15 @@ function extractDniName(data: any): string | null {
 // Scrape eldni.com for Peruvian DNI names
 async function scrapeElDni(cleanDni: string): Promise<string | null> {
   try {
-    const url = `https://eldni.com/pe/buscar-por-dni`;
-    const params = new URLSearchParams({ dni: cleanDni, buscar: 'buscar' });
+    const url = `https://eldni.com/pe/buscar-por-dni?dni=${cleanDni}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
     const resp = await fetch(url, {
-      method: 'POST',
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Referer': 'https://eldni.com/pe/buscar-por-dni'
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
       },
-      body: params.toString(),
       signal: controller.signal
     });
     clearTimeout(timeout);
@@ -203,6 +200,95 @@ function calculateRuc10(dni: string): string | null {
   return `10${cleanDni}${check}`;
 }
 
+// Decolecta API Integration (Primary Provider with Token)
+async function lookupDecolectaDni(dni: string) {
+  const token = (process.env.DECOLECTA_API_TOKEN || 'sk_18140.O2lbnHbSENlQUwGv49HaOejDozVMDy91').trim();
+  if (!token) return null;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(`https://api.decolecta.com/v1/reniec/dni?numero=${dni}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (response.ok) {
+      const data = await response.json();
+      const parsed = data?.data || data?.result || data;
+      const name = extractDniName(parsed) || parsed?.nombre || parsed?.nombre_completo || parsed?.razonSocial;
+      if (name && typeof name === 'string' && name.trim().length > 3) {
+        return {
+          success: true,
+          name: name.trim(),
+          address: parsed?.direccion || parsed?.domicilioFiscal || '',
+          source: 'Decolecta RENIEC API'
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Decolecta DNI lookup error:', e);
+  }
+  return null;
+}
+
+async function lookupDecolectaRuc(ruc: string) {
+  const token = (process.env.DECOLECTA_API_TOKEN || 'sk_18140.O2lbnHbSENlQUwGv49HaOejDozVMDy91').trim();
+  if (!token) return null;
+
+  const endpoints = [
+    `https://api.decolecta.com/v1/sunat/ruc?numero=${ruc}`,
+    `https://api.decolecta.com/v1/sunat/ruc/full?numero=${ruc}`
+  ];
+
+  for (const url of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (response.ok) {
+        const data = await response.json();
+        const parsed = data?.data || data?.result || data;
+        if (!parsed) continue;
+
+        const name = parsed.razonSocial || parsed.razon_social || parsed.nombre || parsed.nombre_completo || extractDniName(parsed);
+        const address = parsed.direccion || parsed.direccionCompleta || parsed.domicilioFiscal || parsed.domicilio_fiscal || parsed.address || '';
+        const condition = parsed.condicion || parsed.condicion_domicilio || 'HABIDO';
+        const state = parsed.estado || parsed.estado_contribuyente || 'ACTIVO';
+
+        if (name && typeof name === 'string' && name.trim().length > 3) {
+          return {
+            success: true,
+            name: name.trim(),
+            address: typeof address === 'string' ? address.trim() : '',
+            condition,
+            state,
+            source: 'Decolecta SUNAT API'
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Decolecta RUC lookup error:', e);
+    }
+  }
+
+  return null;
+}
+
 // Query RENIEC / SUNAT for DNI (8 digits) with multiple fallback providers
 async function lookupDni(dni: string) {
   const cleanDni = dni.trim().replace(/\D/g, '');
@@ -282,11 +368,19 @@ async function lookupDni(dni: string) {
     // Ignore error
   }
 
+  // Method 5: Decolecta API (Fallback when all free methods fail)
+  const decolectaRes = await lookupDecolectaDni(cleanDni);
+  if (decolectaRes && decolectaRes.name) {
+    return decolectaRes;
+  }
+
   return null;
 }
 
 // Query SUNAT for RUC (11 digits)
 async function lookupRuc(ruc: string) {
+  let freeResult: any = null;
+
   // Tier 1: Try public JSON APIs
   const jsonEndpoints = [
     `https://api.apis.net.pe/v1/ruc?numero=${ruc}`,
@@ -302,12 +396,22 @@ async function lookupRuc(ruc: string) {
   for (const url of jsonEndpoints) {
     const data = await fetchJsonSafe(url);
     const parsed = extractRucData(data);
-    if (parsed) return parsed;
+    if (parsed && parsed.name) {
+      if (parsed.address) {
+        return parsed; // Complete result (Name + Address) from free API!
+      }
+      if (!freeResult) freeResult = parsed;
+    }
   }
 
   // Tier 2: Try scraping official SUNAT portal directly
   const portalResult = await scrapeSunatPortal(ruc);
-  if (portalResult) return portalResult;
+  if (portalResult && portalResult.name) {
+    if (portalResult.address) {
+      return portalResult; // Complete result from official portal!
+    }
+    if (!freeResult) freeResult = portalResult;
+  }
 
   // Tier 3: If RUC 10 (Persona Natural con Negocio, e.g., 10749052703)
   // The digits 3..10 are the person's DNI! (e.g. 74905270)
@@ -315,15 +419,28 @@ async function lookupRuc(ruc: string) {
     const dniPart = ruc.substring(2, 10);
     const dniResult = await lookupDni(dniPart);
     if (dniResult && dniResult.name) {
-      return {
+      const naturalResult = {
         success: true,
         name: dniResult.name,
-        address: '',
+        address: dniResult.address || '',
         condition: 'HABIDO',
         state: 'ACTIVO',
         source: 'RENIEC (Persona Natural RUC 10)'
       };
+      if (naturalResult.address) return naturalResult;
+      if (!freeResult) freeResult = naturalResult;
     }
+  }
+
+  // Tier 4: Decolecta API (Fallback if free methods failed OR if free method returned no address)
+  const decolectaRes = await lookupDecolectaRuc(ruc);
+  if (decolectaRes && decolectaRes.name) {
+    return decolectaRes;
+  }
+
+  // Return partial free result if Decolecta couldn't find it or had no token
+  if (freeResult) {
+    return freeResult;
   }
 
   return null;

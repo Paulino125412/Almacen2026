@@ -282,7 +282,7 @@ _Generado desde TexFlow Almacén_`;
                 <span className="font-bold"># FACTURA:</span> {order.bolivarFactura || '......................................................'}
               </div>
               <div className="col-span-4">
-                <span className="font-bold">BOLÍVAR:</span> ..........................................................
+                <span className="font-bold">BOLÍVAR:</span> {order.bolivarPendingInfo || '..........................................................'}
               </div>
             </div>
           </div>
