@@ -129,12 +129,6 @@ export interface SalesOrder {
   billingRucDni: string;
   pendingAmount: number;
   observations: string;
-  dealerNote?: string;
-  bolivarNote?: string;
-  dealerFactura?: string;
-  bolivarFactura?: string;
-  pendingBillingInfo?: string;
-  bolivarPendingInfo?: string;
   items: SalesOrderItem[];
   totalAmount: number;
   createdAt: string;

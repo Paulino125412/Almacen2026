@@ -121,14 +121,6 @@ export default function SalesOrderManager({
   // Observations
   const [observations, setObservations] = useState('');
 
-  // Warehouse Section
-  const [dealerNote, setDealerNote] = useState('');
-  const [bolivarNote, setBolivarNote] = useState('');
-  const [dealerFactura, setDealerFactura] = useState('');
-  const [bolivarFactura, setBolivarFactura] = useState('');
-  const [pendingBillingInfo, setPendingBillingInfo] = useState('');
-  const [bolivarPendingInfo, setBolivarPendingInfo] = useState('');
-
   // Form Items
   const [items, setItems] = useState<SalesOrderItem[]>([
     {
@@ -298,13 +290,6 @@ export default function SalesOrderManager({
     setPendingAmount('');
     setObservations('');
 
-    setDealerNote('');
-    setBolivarNote('');
-    setDealerFactura('');
-    setBolivarFactura('');
-    setPendingBillingInfo('');
-    setBolivarPendingInfo('');
-
     setItems([
       {
         id: `item-${Date.now()}-1`,
@@ -351,12 +336,6 @@ export default function SalesOrderManager({
       billingRucDni: billingRucDni.trim(),
       pendingAmount: Number(pendingAmount) || 0,
       observations: observations.trim(),
-      dealerNote: dealerNote.trim(),
-      bolivarNote: bolivarNote.trim(),
-      dealerFactura: dealerFactura.trim(),
-      bolivarFactura: bolivarFactura.trim(),
-      pendingBillingInfo: pendingBillingInfo.trim(),
-      bolivarPendingInfo: bolivarPendingInfo.trim(),
       items: items.map(i => ({
         ...i,
         unitPrice: Number(i.unitPrice) || 0,
@@ -415,13 +394,6 @@ export default function SalesOrderManager({
     setBillingRucDni(order.billingRucDni || '');
     setPendingAmount(order.pendingAmount || '');
     setObservations(order.observations || '');
-
-    setDealerNote(order.dealerNote || '');
-    setBolivarNote(order.bolivarNote || '');
-    setDealerFactura(order.dealerFactura || '');
-    setBolivarFactura(order.bolivarFactura || '');
-    setPendingBillingInfo(order.pendingBillingInfo || '');
-    setBolivarPendingInfo(order.bolivarPendingInfo || '');
 
     setItems(order.items && order.items.length > 0 ? order.items : [
       {
@@ -1050,99 +1022,6 @@ export default function SalesOrderManager({
                   onChange={e => setPendingAmount(e.target.value === '' ? '' : Number(e.target.value))}
                   placeholder="0.00"
                   className="w-full px-3 py-2 border border-app-border rounded-lg bg-app-surface text-app-text text-xs font-mono font-bold text-red-600 focus:outline-hidden focus:ring-1 focus:ring-app-primary"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Form Section 4.1: Control de Almacén y Pendiente por Facturar (Opcional) */}
-          <div className="space-y-4 pt-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-app-text/80 flex items-center justify-between border-b border-app-border/60 pb-2">
-              <span className="flex items-center gap-1.5">
-                <Building size={14} className="text-app-primary" />
-                Control de Almacén y Pendiente por Facturar
-              </span>
-              <span className="text-[10px] font-normal text-app-text/50 lowercase italic">
-                (opcional - para ser llenado por almacén / control)
-              </span>
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-app-bg/30 p-4 rounded-lg border border-app-border">
-              <div>
-                <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">
-                  Dealer (Nota de Almacén)
-                </label>
-                <input
-                  type="text"
-                  value={dealerNote}
-                  onChange={e => setDealerNote(e.target.value)}
-                  placeholder="Ej. Nota / Guía Dealer"
-                  className="w-full px-3 py-2 border border-app-border rounded-lg bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">
-                  Bolívar (Nota de Almacén)
-                </label>
-                <input
-                  type="text"
-                  value={bolivarNote}
-                  onChange={e => setBolivarNote(e.target.value)}
-                  placeholder="Ej. Nota / Guía Bolívar"
-                  className="w-full px-3 py-2 border border-app-border rounded-lg bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">
-                  Dealer (Pendiente por Facturar)
-                </label>
-                <input
-                  type="text"
-                  value={pendingBillingInfo}
-                  onChange={e => setPendingBillingInfo(e.target.value)}
-                  placeholder="Ej. F-00123 / Pendiente"
-                  className="w-full px-3 py-2 border border-app-border rounded-lg bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">
-                  # Factura Dealer
-                </label>
-                <input
-                  type="text"
-                  value={dealerFactura}
-                  onChange={e => setDealerFactura(e.target.value)}
-                  placeholder="Ej. F001-00045"
-                  className="w-full px-3 py-2 border border-app-border rounded-lg bg-app-surface text-app-text text-xs font-mono focus:outline-hidden focus:ring-1 focus:ring-app-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">
-                  # Factura Bolívar
-                </label>
-                <input
-                  type="text"
-                  value={bolivarFactura}
-                  onChange={e => setBolivarFactura(e.target.value)}
-                  placeholder="Ej. F002-00089"
-                  className="w-full px-3 py-2 border border-app-border rounded-lg bg-app-surface text-app-text text-xs font-mono focus:outline-hidden focus:ring-1 focus:ring-app-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider">
-                  Bolívar (Pendiente por Facturar)
-                </label>
-                <input
-                  type="text"
-                  value={bolivarPendingInfo}
-                  onChange={e => setBolivarPendingInfo(e.target.value)}
-                  placeholder="Ej. F-00124 / Pendiente"
-                  className="w-full px-3 py-2 border border-app-border rounded-lg bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
                 />
               </div>
             </div>

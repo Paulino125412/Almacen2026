@@ -96,58 +96,68 @@ _Generado desde TexFlow Almacén_`;
         </div>
       </div>
 
-      {/* Print Document Container - Designed for top half of A4 page */}
+      {/* Print Document Container - Designed for A4 page half */}
       <div className="w-full max-w-4xl bg-white text-black p-4 sm:p-6 print:p-0 rounded-b-xl print:rounded-none shadow-2xl print:shadow-none print:w-full">
-        {/* Printable Area with Page Half Height Constraint */}
-        <div className="sales-ficha-print-sheet mx-auto bg-white text-black font-sans text-[11px] leading-tight border border-black p-2 max-w-[210mm] print:max-w-none">
-          {/* Header Title */}
-          <div className="text-center font-bold text-base sm:text-lg mb-2 border-b-2 border-black pb-1 uppercase tracking-wide">
-            Ficha de Venta Cliente N° <span className="font-mono tracking-widest font-normal">....................</span>
+        {/* Printable Area matching exact PDF design */}
+        <div className="sales-ficha-print-sheet mx-auto bg-white text-black font-sans text-[11px] leading-tight p-2 max-w-[210mm] print:max-w-none">
+          
+          {/* 1. Header Title */}
+          <div className="text-center font-bold text-base sm:text-lg mb-2">
+            Ficha de Venta Cliente N°..........................
           </div>
 
-          {/* Seller and Date Bar */}
-          <div className="grid grid-cols-12 border border-black mb-1 bg-gray-50 print:bg-transparent">
-            <div className="col-span-8 p-1.5 border-r border-black font-semibold flex items-center gap-2">
-              <span className="font-bold">Nombre del ejecutor de ventas:</span>
-              <span className="font-normal uppercase">{order.sellerName || '-'}</span>
+          {/* 2. Top Sub-header */}
+          <div className="flex justify-between items-center text-[11px] mb-2 px-1">
+            <div>
+              <span className="font-normal">Nombre del ejecutor de ventas: </span>
+              <span className="font-bold uppercase ml-1">{order.sellerName || '................................................................'}</span>
             </div>
-            <div className="col-span-4 p-1.5 font-semibold flex items-center justify-between">
-              <span className="font-bold">Fecha:</span>
-              <span className="font-mono">{order.date || 'DD/MM/AAAA'}</span>
+            <div>
+              <span className="font-normal">Fecha: </span>
+              <span className="font-bold font-mono ml-1">{order.date || '........................'}</span>
             </div>
           </div>
 
-          {/* Items Table */}
-          <table className="w-full border-collapse border border-black mb-1 text-[10.5px]">
+          {/* 3. Items & Info Master Table Grid */}
+          <table className="w-full border-collapse border border-black text-[10.5px] mb-2">
             <thead>
-              <tr className="bg-gray-100 print:bg-gray-100 border-b border-black font-bold uppercase text-[9.5px]">
-                <th className="border-r border-black p-1 text-center w-[12%]">Código</th>
-                <th className="border-r border-black p-1 text-left w-[42%]">Descripción</th>
-                <th className="border-r border-black p-1 text-right w-[11.5%]">Precio Unit.</th>
-                <th className="border-r border-black p-1 text-right w-[11.5%]">Cant. Solicitada</th>
-                <th className="border-r border-black p-1 text-right w-[11.5%]">Cant. Despachada</th>
-                <th className="p-1 text-right w-[11.5%]">Importe Total</th>
+              <tr className="border-b border-black font-normal text-[10px]">
+                <th className="border-r border-black p-1 text-center font-bold w-[10%]">Código</th>
+                <th className="border-r border-black p-1 text-center font-bold w-[42%]">Descripción</th>
+                <th className="border-r border-black p-1 text-center font-bold w-[12%] leading-tight">
+                  Precio<br />Unitario
+                </th>
+                <th className="border-r border-black p-1 text-center font-bold w-[12%] leading-tight">
+                  Cantidad<br />solicitada
+                </th>
+                <th className="border-r border-black p-1 text-center font-bold w-[12%] leading-tight">
+                  Cantidad<br />despachada
+                </th>
+                <th className="p-1 text-center font-bold w-[12%] leading-tight">
+                  Importe<br />total
+                </th>
               </tr>
             </thead>
             <tbody>
+              {/* Product Rows */}
               {order.items.map((item, idx) => (
-                <tr key={item.id || idx} className="border-b border-gray-400">
-                  <td className="border-r border-black p-1 text-center font-mono font-bold">{item.code || '-'}</td>
-                  <td className="border-r border-black p-1 font-medium">{item.description || '-'}</td>
-                  <td className="border-r border-black p-1 text-right font-mono">
-                    {item.unitPrice ? `S/. ${item.unitPrice.toFixed(2)}` : '-'}
+                <tr key={item.id || idx} className="border-b border-black">
+                  <td className="border-r border-black p-1 text-center font-mono font-bold">{item.code || ''}</td>
+                  <td className="border-r border-black p-1 font-bold">{item.description || ''}</td>
+                  <td className="border-r border-black p-1 text-right font-mono font-bold">
+                    {item.unitPrice ? item.unitPrice.toFixed(2) : ''}
                   </td>
-                  <td className="border-r border-black p-1 text-right font-mono">{item.requestedQty || '-'}</td>
-                  <td className="border-r border-black p-1 text-right font-mono font-bold">{item.dispatchedQty || '-'}</td>
+                  <td className="border-r border-black p-1 text-right font-mono font-bold">{item.requestedQty || ''}</td>
+                  <td className="border-r border-black p-1 text-right font-mono font-bold">{item.dispatchedQty || ''}</td>
                   <td className="p-1 text-right font-mono font-bold">
-                    {item.totalAmount ? `S/. ${item.totalAmount.toFixed(2)}` : '-'}
+                    {item.totalAmount ? item.totalAmount.toFixed(2) : ''}
                   </td>
                 </tr>
               ))}
-              
-              {/* Padding rows if items are few to maintain structure */}
-              {Array.from({ length: Math.max(0, 3 - order.items.length) }).map((_, i) => (
-                <tr key={`empty-${i}`} className="border-b border-gray-200 text-transparent">
+
+              {/* Empty padding rows to guarantee height matching original form */}
+              {Array.from({ length: Math.max(0, 4 - order.items.length) }).map((_, i) => (
+                <tr key={`empty-${i}`} className="border-b border-black h-6">
                   <td className="border-r border-black p-1">&nbsp;</td>
                   <td className="border-r border-black p-1">&nbsp;</td>
                   <td className="border-r border-black p-1">&nbsp;</td>
@@ -156,136 +166,178 @@ _Generado desde TexFlow Almacén_`;
                   <td className="p-1">&nbsp;</td>
                 </tr>
               ))}
-            </tbody>
-            <tfoot>
-              <tr className="font-bold border-t border-black bg-gray-50 print:bg-transparent">
-                <td colSpan={4} className="border-r border-black p-1 text-right uppercase text-[10px]">
-                  CLIENTE: <span className="font-bold normal-case text-black ml-1">{order.clientName || '------------------'}</span>
+
+              {/* CLIENTE & TOTAL Row */}
+              <tr className="border-b border-black">
+                <td colSpan={4} className="border-r border-black p-1">
+                  CLIENTE: <span className="font-bold uppercase ml-1">{order.clientName || ''}</span>
                 </td>
-                <td className="border-r border-black p-1 text-right uppercase text-[10px] font-extrabold">
-                  TOTAL
-                </td>
-                <td className="p-1 text-right font-mono text-xs font-black">
-                  S/. {formattedTotal}
+                <td colSpan={2} className="p-1">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold">TOTAL</span>
+                    <span className="font-mono font-bold text-xs">{formattedTotal ? `S/. ${formattedTotal}` : ''}</span>
+                  </div>
                 </td>
               </tr>
-            </tfoot>
+
+              {/* Dirección fiscal & RUC/DNI Row */}
+              <tr className="border-b border-black">
+                <td colSpan={4} className="border-r border-black p-1">
+                  <div className="flex items-start gap-1">
+                    <span className="whitespace-nowrap">Dirección fiscal</span>
+                    <span className="font-bold uppercase ml-1">{order.fiscalAddress || ''}</span>
+                  </div>
+                </td>
+                <td colSpan={2} className="p-1">
+                  <span>RUC/DNI: </span>
+                  <span className="font-mono font-bold">{order.clientRucDni || ''}</span>
+                </td>
+              </tr>
+
+              {/* Contacto de despacho Row */}
+              <tr className="border-b border-black">
+                <td colSpan={1} className="border-r border-black p-1 leading-tight">
+                  Contacto de<br />despacho
+                </td>
+                <td colSpan={5} className="p-1">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><span>Nombre: </span><span className="font-bold uppercase">{order.dispatchContactName || ''}</span></div>
+                    <div><span>Teléfono: </span><span className="font-mono font-bold">{order.dispatchContactPhone || ''}</span></div>
+                  </div>
+                </td>
+              </tr>
+
+              {/* Lugar de despacho Row */}
+              <tr className="border-b border-black">
+                <td colSpan={4} className="border-r border-black p-1">
+                  <span>Lugar de despacho</span>
+                  <span className="font-bold uppercase ml-1">{order.dispatchAddress || ''}</span>
+                </td>
+                <td colSpan={2} className="p-1">
+                  <span>Número de piso</span>
+                  <span className="font-bold font-mono ml-1">{order.floorNumber || ''}</span>
+                </td>
+              </tr>
+
+              {/* Fecha de despacho & Hora de despacho Row */}
+              <tr className="border-b border-black">
+                <td colSpan={2} className="border-r border-black p-1">
+                  <span>Fecha de despacho</span>
+                  <span className="font-mono font-bold ml-1">{order.dispatchDate || ''}</span>
+                </td>
+                <td colSpan={2} className="border-r border-black p-1">
+                  <span>Hora de despacho</span>
+                  <span className="font-mono font-bold ml-1">{order.dispatchTime || ''}</span>
+                </td>
+                <td colSpan={2} className="p-1 font-bold text-center uppercase">
+                  DURANTE EL DIA
+                </td>
+              </tr>
+
+              {/* Forma de pago Row */}
+              <tr className="border-b border-black">
+                <td colSpan={6} className="p-1">
+                  <span>Forma de pago</span>
+                  <span className="font-bold uppercase ml-2">{order.paymentMethod || ''}</span>
+                </td>
+              </tr>
+
+              {/* Billing Split Row */}
+              <tr>
+                <td colSpan={3} className="border-r border-black p-1.5 align-top">
+                  <div className="space-y-1">
+                    <div>
+                      <span>Importe facturado:(S/.)</span>{' '}
+                      <span className="font-mono font-bold ml-1">{order.billedAmount ? `S/. ${formattedBilled}` : ''}</span>
+                    </div>
+                    <div>
+                      <span>Nombre:</span>{' '}
+                      <span className="font-bold uppercase ml-1">{order.billingName || ''}</span>
+                    </div>
+                    <div>
+                      <span>RUC/DNI:</span>{' '}
+                      <span className="font-mono font-bold ml-1">{order.billingRucDni || ''}</span>
+                    </div>
+                  </div>
+                </td>
+                <td colSpan={3} className="p-1.5 align-top">
+                  <div className="space-y-1">
+                    <div>
+                      <span>Importe facturado:(S/.)</span>...........................................................
+                    </div>
+                    <div>
+                      <span>Nombre:</span>....................................................................................
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span>RUC/DNI:</span>..................................................................................
+                      </div>
+                      <div>
+                        <span>Pendiente:</span>
+                        <span className="font-mono font-bold ml-1">{order.pendingAmount ? `S/. ${formattedPending}` : '.................................'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
           </table>
 
-          {/* Client & Dispatch Details Grid */}
-          <div className="border border-black mb-1 text-[10px]">
-            <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-8 p-1 border-r border-black">
-                <span className="font-bold uppercase">Dirección fiscal:</span> {order.fiscalAddress || '-'}
-              </div>
-              <div className="col-span-4 p-1">
-                <span className="font-bold uppercase">RUC/DNI:</span> <span className="font-mono font-bold">{order.clientRucDni || '-'}</span>
-              </div>
+          {/* 4. Observaciones & Prestamo de Prendas */}
+          <div className="mb-3 px-1 space-y-1 text-[10.5px]">
+            <div>
+              <span>Observaciones: </span>
+              <span className="font-bold uppercase">{order.observations || ''}</span>
             </div>
-
-            <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-3 p-1 font-bold border-r border-black uppercase bg-gray-50 print:bg-transparent">
-                Contacto de despacho
-              </div>
-              <div className="col-span-9 p-1 grid grid-cols-2 gap-2">
-                <div><span className="font-bold">Nombre:</span> {order.dispatchContactName || '-'}</div>
-                <div><span className="font-bold">Teléfono:</span> <span className="font-mono">{order.dispatchContactPhone || '-'}</span></div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-8 p-1 border-r border-black">
-                <span className="font-bold uppercase">Lugar de despacho:</span> {order.dispatchAddress || '-'}
-              </div>
-              <div className="col-span-4 p-1">
-                <span className="font-bold uppercase">Número de piso:</span> {order.floorNumber || '-'}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-6 p-1 border-r border-black">
-                <span className="font-bold uppercase">Fecha de despacho:</span> <span className="font-mono">{order.dispatchDate || '-'}</span>
-              </div>
-              <div className="col-span-6 p-1">
-                <span className="font-bold uppercase">Hora de despacho:</span> <span className="font-mono">{order.dispatchTime || '-'}</span>
-              </div>
-            </div>
-
-            <div className="p-1 bg-gray-50 print:bg-transparent">
-              <span className="font-bold uppercase">Forma de pago:</span> <span className="font-semibold ml-2">{order.paymentMethod || '-'}</span>
+            <div className="font-bold uppercase tracking-wider text-[11px]">
+              PRESTAMO DE PRENDAS
             </div>
           </div>
 
-          {/* Billing Breakdown Grid */}
-          <div className="border border-black mb-1 text-[9.5px]">
-            <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-5 p-1 border-r border-black">
-                <span className="font-bold">Importe facturado:(S/.)</span> <span className="font-mono font-bold ml-1">{order.billedAmount ? `S/. ${formattedBilled}` : ''}</span>
-              </div>
-              <div className="col-span-7 p-1">
-                <span className="font-bold">Importe facturado:(S/.)...................................................</span>
-              </div>
+          {/* 5. (PARA SER LLENADO POR ALMACÉN) Section */}
+          <div className="px-1 text-[10px]">
+            <div className="font-bold uppercase text-[10.5px] mb-1">
+              (PARA SER LLENADO POR ALMACÉN)
             </div>
 
-            <div className="grid grid-cols-12 border-b border-black">
-              <div className="col-span-5 p-1 border-r border-black">
-                <span className="font-bold">Nombre:</span> {order.billingName || ''}
+            <div className="grid grid-cols-12 gap-2 items-start">
+              {/* Dealer & Factura Lines */}
+              <div className="col-span-4 space-y-1.5">
+                <div>
+                  <span className="font-bold">DEALER:</span>................................................................................
+                </div>
+                <div>
+                  <span className="font-bold"># FACTURA:</span>...........................................................................
+                </div>
               </div>
-              <div className="col-span-4 p-1 border-r border-black">
-                <span className="font-bold">Nombre:...........................................................</span>
-              </div>
-              <div className="col-span-3 p-1 font-bold">
-                Pendiente:<span className="font-mono font-bold ml-1">{order.pendingAmount ? `S/. ${formattedPending}` : '.........................'}</span>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-12">
-              <div className="col-span-5 p-1 border-r border-black">
-                <span className="font-bold">RUC/DNI:</span> <span className="font-mono">{order.billingRucDni || ''}</span>
+              {/* Bolívar & Factura Lines */}
+              <div className="col-span-4 space-y-1.5">
+                <div>
+                  <span className="font-bold">BOLÍVAR:</span>.....................................................................
+                </div>
+                <div>
+                  <span className="font-bold"># FACTURA:</span>................................................................
+                </div>
               </div>
-              <div className="col-span-7 p-1">
-                <span className="font-bold">RUC/DNI:...........................................................</span>
+
+              {/* Boxed Pendiente Por Facturar */}
+              <div className="col-span-4 border border-black p-1.5 space-y-1 bg-white">
+                <div className="font-bold text-center text-[10px] uppercase border-b border-gray-300 pb-0.5">
+                  PENDIENTE POR FACTURAR
+                </div>
+                <div>
+                  <span className="font-bold">DEALER:</span>.................................................
+                </div>
+                <div>
+                  <span className="font-bold">BOLÍVAR:</span>...............................................
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Observaciones */}
-          <div className="border border-black p-1 mb-1 text-[9.5px]">
-            <span className="font-bold uppercase">Observaciones:</span>
-            <div className="min-h-[18px] text-gray-800 italic mt-0.5">
-              {order.observations || '......................................................................................................................................................................................'}
-            </div>
-          </div>
-
-          {/* Warehouse Footer Section */}
-          <div className="border border-black p-1.5 bg-gray-50 print:bg-transparent text-[9px]">
-            <div className="font-bold uppercase text-[9.5px] border-b border-black pb-0.5 mb-1 flex items-center justify-between">
-              <span>(PARA SER LLENADO POR ALMACÉN)</span>
-              <span className="text-[8.5px] font-bold tracking-wider">PENDIENTE POR FACTURAR</span>
-            </div>
-
-            <div className="grid grid-cols-12 gap-x-2 gap-y-1">
-              <div className="col-span-4">
-                <span className="font-bold">DEALER:</span> {order.dealerNote || '..........................................................'}
-              </div>
-              <div className="col-span-4">
-                <span className="font-bold">BOLÍVAR:</span> {order.bolivarNote || '..........................................................'}
-              </div>
-              <div className="col-span-4">
-                <span className="font-bold">DEALER:</span> {order.pendingBillingInfo || '..........................................................'}
-              </div>
-
-              <div className="col-span-4">
-                <span className="font-bold"># FACTURA:</span> {order.dealerFactura || '......................................................'}
-              </div>
-              <div className="col-span-4">
-                <span className="font-bold"># FACTURA:</span> {order.bolivarFactura || '......................................................'}
-              </div>
-              <div className="col-span-4">
-                <span className="font-bold">BOLÍVAR:</span> {order.bolivarPendingInfo || '..........................................................'}
-              </div>
-            </div>
-          </div>
+          {/* Bottom Cut Line */}
+          <div className="mt-4 border-b border-dashed border-gray-500 w-full"></div>
         </div>
       </div>
 
