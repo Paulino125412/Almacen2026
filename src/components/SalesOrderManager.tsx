@@ -317,10 +317,10 @@ export default function SalesOrderManager({
 
     const payload: Omit<SalesOrder, 'id'> = {
       orderNo: generatedOrderNo,
-      sellerId: sellerId || undefined,
+      sellerId: sellerId || '',
       sellerName: sellerName.trim() || currentOperator,
       date: date || new Date().toISOString().split('T')[0],
-      clientId: selectedClientId || undefined,
+      clientId: selectedClientId || '',
       clientName: clientName.trim(),
       clientRucDni: clientRucDni.trim(),
       fiscalAddress: fiscalAddress.trim(),
@@ -328,16 +328,19 @@ export default function SalesOrderManager({
       dispatchContactPhone: dispatchContactPhone.trim(),
       dispatchAddress: dispatchAddress.trim(),
       floorNumber: floorNumber.trim(),
-      dispatchDate: dispatchDate,
-      dispatchTime: dispatchTime,
-      paymentMethod: paymentMethod,
+      dispatchDate: dispatchDate || '',
+      dispatchTime: dispatchTime || '',
+      paymentMethod: paymentMethod || '',
       billedAmount: Number(billedAmount) || 0,
       billingName: billingName.trim(),
       billingRucDni: billingRucDni.trim(),
       pendingAmount: Number(pendingAmount) || 0,
       observations: observations.trim(),
       items: validItems.map(i => ({
-        ...i,
+        id: i.id,
+        articleId: i.articleId || '',
+        code: (i.code || '').trim(),
+        description: (i.description || '').trim(),
         unitPrice: Number(i.unitPrice) || 0,
         requestedQty: Number(i.requestedQty) || 0,
         dispatchedQty: Number(i.dispatchedQty) || 0,
@@ -363,7 +366,7 @@ export default function SalesOrderManager({
       }
     } catch (err: any) {
       console.error('Error saving sales order:', err);
-      setAlertError('Ocurrió un error al guardar la Ficha de Venta.');
+      setAlertError(`Ocurrió un error al guardar la Ficha de Venta: ${err?.message || 'Error de conexión o datos inválidos.'}`);
     } finally {
       setLoading(false);
     }
@@ -711,42 +714,6 @@ export default function SalesOrderManager({
               <User size={14} className="text-app-primary" />
               1. Datos Fiscales del Cliente (SUNAT / Facturación)
             </h3>
-
-            {/* Client selector dropdown with auto-fill datalist */}
-            {clients.length > 0 && (
-              <div className="bg-app-bg/30 p-3 rounded-lg border border-app-border">
-                <label className="block text-xs font-bold text-app-text/70 mb-1 uppercase tracking-wider">
-                  Buscar y Auto-completar desde Catálogo de Clientes:
-                </label>
-                <input
-                  type="text"
-                  list="clients-catalog-datalist"
-                  value={selectedClientId ? (clients.find(c => c.id === selectedClientId)?.name || '') : ''}
-                  onChange={e => {
-                    const val = e.target.value;
-                    const found = clients.find(c => 
-                      c.id === val || 
-                      c.name.toLowerCase().trim() === val.toLowerCase().trim() ||
-                      (c.dni && c.dni.toLowerCase().trim() === val.toLowerCase().trim())
-                    );
-                    if (found) {
-                      handleSelectClient(found.id);
-                    } else if (!val) {
-                      setSelectedClientId('');
-                    }
-                  }}
-                  placeholder="Escriba o busque cliente por nombre, RUC/DNI o encargado..."
-                  className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary font-medium"
-                />
-                <datalist id="clients-catalog-datalist">
-                  {clients.map(c => (
-                    <option key={c.id} value={c.name}>
-                      {c.dni ? `RUC/DNI: ${c.dni}` : ''}{c.contactPerson ? ` | Encargado: ${c.contactPerson}` : ''}
-                    </option>
-                  ))}
-                </datalist>
-              </div>
-            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
