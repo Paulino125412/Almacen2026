@@ -354,7 +354,7 @@ export default function BarcodeScannerModal({
 
             {/* Error Message banner */}
             {errorMsg && (
-              <div className="bg-red-50 border-b border-red-150 p-2.5 text-xs text-red-600 font-bold flex items-center gap-2 shrink-0 animate-fade-in font-sans">
+              <div className="bg-red-50 border-b border-red-200 p-2.5 text-xs text-red-600 font-bold flex items-center gap-2 shrink-0 animate-fade-in font-sans">
                 <AlertTriangle size={14} className="shrink-0" />
                 <span>{errorMsg}</span>
               </div>

@@ -310,6 +310,15 @@ export default function SalesOrderManager({
       return;
     }
 
+    const validItems = items.filter(
+      i => i.description.trim() !== '' || i.code.trim() !== '' || (Number(i.requestedQty) || 0) > 0
+    );
+
+    if (validItems.length === 0) {
+      setAlertError('Por favor ingrese al menos un artículo o producto.');
+      return;
+    }
+
     setLoading(true);
     setAlertError(null);
 
@@ -336,7 +345,7 @@ export default function SalesOrderManager({
       billingRucDni: billingRucDni.trim(),
       pendingAmount: Number(pendingAmount) || 0,
       observations: observations.trim(),
-      items: items.map(i => ({
+      items: validItems.map(i => ({
         ...i,
         unitPrice: Number(i.unitPrice) || 0,
         requestedQty: Number(i.requestedQty) || 0,
@@ -352,12 +361,12 @@ export default function SalesOrderManager({
       if (editingId) {
         await updateDoc(doc(db, 'sales_orders', editingId), payload);
         const fullSaved: SalesOrder = { id: editingId, ...payload };
-        setAlertSuccess(`Ficha de Venta "${orderNo}" actualizada correctamente.`);
+        setAlertSuccess('Ficha de Venta actualizada correctamente.');
         if (shouldPrint) setPrintOrder(fullSaved);
       } else {
         const res = await addDoc(collection(db, 'sales_orders'), payload);
         const fullSaved: SalesOrder = { id: res.id, ...payload };
-        setAlertSuccess(`Ficha de Venta "${orderNo}" creada exitosamente.`);
+        setAlertSuccess('Ficha de Venta creada exitosamente.');
         if (shouldPrint) setPrintOrder(fullSaved);
         handleResetForm();
       }
@@ -372,7 +381,7 @@ export default function SalesOrderManager({
   // Edit Order Load
   const handleEditOrder = (order: SalesOrder) => {
     setEditingId(order.id);
-    setOrderNo(order.orderNo);
+    setOrderNo(order.orderNo || '');
     setSellerName(order.sellerName || '');
     setSellerId(order.sellerId || '');
     setDate(order.date || new Date().toISOString().split('T')[0]);
@@ -415,7 +424,7 @@ export default function SalesOrderManager({
     if (!deleteTarget) return;
     try {
       await deleteDoc(doc(db, 'sales_orders', deleteTarget.id));
-      setAlertSuccess(`Ficha de Venta "${deleteTarget.orderNo}" eliminada.`);
+      setAlertSuccess('Ficha de Venta eliminada correctamente.');
       setDeleteTarget(null);
     } catch (err) {
       setAlertError('Error al eliminar la ficha de venta.');
@@ -494,7 +503,7 @@ export default function SalesOrderManager({
           <div className="flex flex-wrap items-center justify-between border-b border-app-border/60 pb-3 gap-3">
             <h2 className="text-sm font-bold uppercase tracking-wider text-app-primary flex items-center gap-2">
               <ClipboardList size={16} />
-              {editingId ? `Editando Ficha N° ${orderNo}` : 'Ficha de Venta Cliente'}
+              {editingId ? 'Editando Ficha de Venta' : 'Ficha de Venta Cliente'}
             </h2>
             {editingId && (
               <button
@@ -1105,7 +1114,6 @@ export default function SalesOrderManager({
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-app-bg/60 border-b border-app-border text-app-text/60 font-bold uppercase text-[10px]">
-                  <th className="p-3">N° Ficha</th>
                   <th className="p-3">Fecha</th>
                   <th className="p-3">Cliente</th>
                   <th className="p-3">Ejecutor Ventas</th>
@@ -1117,14 +1125,13 @@ export default function SalesOrderManager({
               <tbody className="divide-y divide-app-border/60">
                 {filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-app-text/50">
+                    <td colSpan={6} className="p-8 text-center text-app-text/50">
                       No se encontraron fichas de venta registradas.
                     </td>
                   </tr>
                 ) : (
                   filteredOrders.map(order => (
                     <tr key={order.id} className="hover:bg-app-bg/30 transition">
-                      <td className="p-3 font-mono font-bold text-app-primary">{order.orderNo}</td>
                       <td className="p-3 font-mono text-app-text/70">{order.date}</td>
                       <td className="p-3">
                         <div className="font-bold text-app-text">{order.clientName}</div>
@@ -1194,8 +1201,7 @@ export default function SalesOrderManager({
             </div>
 
             <p className="text-xs text-app-text/80 leading-relaxed">
-              ¿Está seguro de que desea eliminar permanentemente la Ficha de Venta{' '}
-              <strong className="font-mono text-app-text">{deleteTarget.orderNo}</strong> para el cliente{' '}
+              ¿Está seguro de que desea eliminar permanentemente la Ficha de Venta para el cliente{' '}
               <strong>{deleteTarget.clientName}</strong>? Esta acción no se puede deshacer.
             </p>
 

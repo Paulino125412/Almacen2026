@@ -21,6 +21,35 @@ export default function PrintSalesOrder({
     window.print();
   };
 
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const trimmed = dateStr.trim();
+    if (!trimmed) return '';
+
+    if (/^\d{2}[\/-]\d{2}[\/-]\d{4}$/.test(trimmed)) {
+      return trimmed.replace(/-/g, '/');
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [y, m, d] = trimmed.split('-');
+      return `${d}/${m}/${y}`;
+    }
+
+    try {
+      const dateObj = new Date(trimmed);
+      if (!isNaN(dateObj.getTime())) {
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const y = dateObj.getFullYear();
+        return `${d}/${m}/${y}`;
+      }
+    } catch {
+      // fallback
+    }
+
+    return trimmed;
+  };
+
   const formattedTotal = (order.totalAmount || 0).toLocaleString('es-PE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
@@ -37,14 +66,14 @@ export default function PrintSalesOrder({
   });
 
   const handleShareWhatsApp = () => {
-    const text = `📋 *FICHA DE VENTA N° ${order.orderNo || '....................'}*
+    const text = `📋 *FICHA DE VENTA CLIENTE*
 ----------------------------------------
 👤 *Cliente:* ${order.clientName}
 🆔 *RUC/DNI:* ${order.clientRucDni || 'N/A'}
 👨‍💼 *Ejecutor de Ventas:* ${order.sellerName || 'N/A'}
-📅 *Fecha:* ${order.date}
+📅 *Fecha:* ${formatDate(order.date)}
 📍 *Lugar de Despacho:* ${order.dispatchAddress || 'Almacén'}
-🚚 *Fecha/Hora Despacho:* ${order.dispatchDate || '-'} ${order.dispatchTime || ''}
+🚚 *Fecha/Hora Despacho:* ${formatDate(order.dispatchDate) || '-'} ${order.dispatchTime || ''}
 💳 *Forma de Pago:* ${order.paymentMethod || '-'}
 
 📦 *ITEMS:*
@@ -62,11 +91,6 @@ _Generado desde TexFlow Almacén_`;
       <div className="w-full max-w-4xl bg-app-surface text-app-text border border-app-border rounded-t-xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-lg no-print print:hidden">
         <div className="flex items-center gap-2">
           <span className="font-bold text-sm text-app-primary">Vista Previa - Ficha de Venta</span>
-          {order.orderNo && (
-            <span className="text-xs text-app-text/60 bg-app-bg px-2 py-0.5 rounded font-mono">
-              {order.orderNo}
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -102,7 +126,7 @@ _Generado desde TexFlow Almacén_`;
         <div className="sales-ficha-print-sheet mx-auto bg-white text-black font-sans text-[11px] leading-tight p-2 max-w-[210mm] print:max-w-none">
           
           {/* 1. Header Title */}
-          <div className="text-center font-bold text-base sm:text-lg mb-2">
+          <div className="text-center font-normal text-base sm:text-lg mb-2">
             Ficha de Venta Cliente N°..........................
           </div>
 
@@ -114,26 +138,26 @@ _Generado desde TexFlow Almacén_`;
             </div>
             <div>
               <span className="font-normal">Fecha: </span>
-              <span className="font-bold font-mono ml-1">{order.date || '........................'}</span>
+              <span className="font-bold font-mono ml-1">{formatDate(order.date) || '........................'}</span>
             </div>
           </div>
 
           {/* 3. Items & Info Master Table Grid */}
           <table className="w-full border-collapse border border-black text-[10.5px] mb-2">
             <thead>
-              <tr className="border-b border-black font-normal text-[10px]">
-                <th className="border-r border-black p-1 text-center font-bold w-[10%]">Código</th>
-                <th className="border-r border-black p-1 text-center font-bold w-[42%]">Descripción</th>
-                <th className="border-r border-black p-1 text-center font-bold w-[12%] leading-tight">
+              <tr className="border-b border-black font-normal text-[10px] bg-gray-200" style={{ backgroundColor: '#e5e7eb', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+                <th className="border-r border-black p-1 text-center font-normal w-[10%]">Código</th>
+                <th className="border-r border-black p-1 text-center font-normal w-[40%]">Descripción</th>
+                <th className="border-r border-black p-1 text-center font-normal w-[12.5%] leading-tight">
                   Precio<br />Unitario
                 </th>
-                <th className="border-r border-black p-1 text-center font-bold w-[12%] leading-tight">
+                <th className="border-r border-black p-1 text-center font-normal w-[12.5%] leading-tight">
                   Cantidad<br />solicitada
                 </th>
-                <th className="border-r border-black p-1 text-center font-bold w-[12%] leading-tight">
+                <th className="border-r border-black p-1 text-center font-normal w-[12.5%] leading-tight">
                   Cantidad<br />despachada
                 </th>
-                <th className="p-1 text-center font-bold w-[12%] leading-tight">
+                <th className="p-1 text-center font-normal w-[12.5%] leading-tight">
                   Importe<br />total
                 </th>
               </tr>
@@ -145,18 +169,22 @@ _Generado desde TexFlow Almacén_`;
                   <td className="border-r border-black p-1 text-center font-mono font-bold">{item.code || ''}</td>
                   <td className="border-r border-black p-1 font-bold">{item.description || ''}</td>
                   <td className="border-r border-black p-1 text-right font-mono font-bold">
-                    {item.unitPrice ? item.unitPrice.toFixed(2) : ''}
+                    {item.unitPrice && Number(item.unitPrice) > 0 ? item.unitPrice.toFixed(2) : ''}
                   </td>
-                  <td className="border-r border-black p-1 text-right font-mono font-bold">{item.requestedQty || ''}</td>
-                  <td className="border-r border-black p-1 text-right font-mono font-bold">{item.dispatchedQty || ''}</td>
+                  <td className="border-r border-black p-1 text-right font-mono font-bold">
+                    {item.requestedQty && Number(item.requestedQty) > 0 ? item.requestedQty : ''}
+                  </td>
+                  <td className="border-r border-black p-1 text-right font-mono font-bold">
+                    {item.dispatchedQty && Number(item.dispatchedQty) > 0 ? item.dispatchedQty : ''}
+                  </td>
                   <td className="p-1 text-right font-mono font-bold">
-                    {item.totalAmount ? item.totalAmount.toFixed(2) : ''}
+                    {item.totalAmount && Number(item.totalAmount) > 0 ? item.totalAmount.toFixed(2) : ''}
                   </td>
                 </tr>
               ))}
 
               {/* Empty padding rows to guarantee height matching original form */}
-              {Array.from({ length: Math.max(0, 4 - order.items.length) }).map((_, i) => (
+              {Array.from({ length: Math.max(0, 3 - order.items.length) }).map((_, i) => (
                 <tr key={`empty-${i}`} className="border-b border-black h-6">
                   <td className="border-r border-black p-1">&nbsp;</td>
                   <td className="border-r border-black p-1">&nbsp;</td>
@@ -169,13 +197,13 @@ _Generado desde TexFlow Almacén_`;
 
               {/* CLIENTE & TOTAL Row */}
               <tr className="border-b border-black">
-                <td colSpan={4} className="border-r border-black p-1">
+                <td colSpan={4} className="border-r border-black p-1 font-normal">
                   CLIENTE: <span className="font-bold uppercase ml-1">{order.clientName || ''}</span>
                 </td>
                 <td colSpan={2} className="p-1">
                   <div className="flex justify-between items-center">
-                    <span className="font-bold">TOTAL</span>
-                    <span className="font-mono font-bold text-xs">{formattedTotal ? `S/. ${formattedTotal}` : ''}</span>
+                    <span className="font-normal">TOTAL</span>
+                    <span className="font-mono font-bold text-xs">{order.totalAmount && Number(order.totalAmount) > 0 ? `S/. ${formattedTotal}` : ''}</span>
                   </div>
                 </td>
               </tr>
@@ -184,97 +212,112 @@ _Generado desde TexFlow Almacén_`;
               <tr className="border-b border-black">
                 <td colSpan={4} className="border-r border-black p-1">
                   <div className="flex items-start gap-1">
-                    <span className="whitespace-nowrap">Dirección fiscal</span>
+                    <span className="font-normal whitespace-nowrap">Dirección fiscal</span>
                     <span className="font-bold uppercase ml-1">{order.fiscalAddress || ''}</span>
                   </div>
                 </td>
                 <td colSpan={2} className="p-1">
-                  <span>RUC/DNI: </span>
+                  <span className="font-normal">RUC/DNI: </span>
                   <span className="font-mono font-bold">{order.clientRucDni || ''}</span>
                 </td>
               </tr>
 
               {/* Contacto de despacho Row */}
               <tr className="border-b border-black">
-                <td colSpan={1} className="border-r border-black p-1 leading-tight">
+                <td colSpan={1} className="border-r border-black p-1 leading-tight text-left font-normal">
                   Contacto de<br />despacho
                 </td>
-                <td colSpan={5} className="p-1">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div><span>Nombre: </span><span className="font-bold uppercase">{order.dispatchContactName || ''}</span></div>
-                    <div><span>Teléfono: </span><span className="font-mono font-bold">{order.dispatchContactPhone || ''}</span></div>
-                  </div>
+                <td colSpan={5} className="p-0">
+                  <table className="w-full border-collapse text-[10.5px]">
+                    <tbody>
+                      <tr className="border-b border-black">
+                        <td className="w-20 border-r border-black p-1 font-normal">Nombre:</td>
+                        <td className="p-1 font-bold uppercase">{order.dispatchContactName || ''}</td>
+                      </tr>
+                      <tr>
+                        <td className="w-20 border-r border-black p-1 font-normal">Teléfono:</td>
+                        <td className="p-1 font-mono font-bold">{order.dispatchContactPhone || ''}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </td>
               </tr>
 
               {/* Lugar de despacho Row */}
               <tr className="border-b border-black">
-                <td colSpan={4} className="border-r border-black p-1">
-                  <span>Lugar de despacho</span>
-                  <span className="font-bold uppercase ml-1">{order.dispatchAddress || ''}</span>
+                <td colSpan={1} className="border-r border-black py-0.5 px-1 leading-none text-left font-normal">
+                  Lugar de<br />despacho
                 </td>
-                <td colSpan={2} className="p-1">
-                  <span>Número de piso</span>
-                  <span className="font-bold font-mono ml-1">{order.floorNumber || ''}</span>
+                <td colSpan={3} className="border-r border-black py-0.5 px-1 text-left font-bold uppercase">
+                  {order.dispatchAddress || ''}
+                </td>
+                <td colSpan={1} className="border-r border-black py-0.5 px-1 text-center font-normal">
+                  Número de piso
+                </td>
+                <td colSpan={1} className="py-0.5 px-1 text-center font-bold font-mono">
+                  {order.floorNumber || ''}
                 </td>
               </tr>
 
               {/* Fecha de despacho & Hora de despacho Row */}
               <tr className="border-b border-black">
-                <td colSpan={2} className="border-r border-black p-1">
-                  <span>Fecha de despacho</span>
-                  <span className="font-mono font-bold ml-1">{order.dispatchDate || ''}</span>
+                <td colSpan={1} className="border-r border-black py-0.5 px-1 leading-none text-left font-normal">
+                  Fecha de<br />despacho
                 </td>
-                <td colSpan={2} className="border-r border-black p-1">
-                  <span>Hora de despacho</span>
-                  <span className="font-mono font-bold ml-1">{order.dispatchTime || ''}</span>
+                <td colSpan={1} className="border-r border-black py-0.5 px-1 text-center font-mono font-bold">
+                  {formatDate(order.dispatchDate) || ''}
                 </td>
-                <td colSpan={2} className="p-1 font-bold text-center uppercase">
-                  DURANTE EL DIA
+                <td colSpan={1} className="border-r border-black py-0.5 px-1 leading-none text-center font-normal">
+                  Hora de<br />despacho
+                </td>
+                <td colSpan={3} className="py-0.5 px-1 text-center font-bold uppercase">
+                  {order.dispatchTime || ''}
                 </td>
               </tr>
 
               {/* Forma de pago Row */}
               <tr className="border-b border-black">
-                <td colSpan={6} className="p-1">
-                  <span>Forma de pago</span>
-                  <span className="font-bold uppercase ml-2">{order.paymentMethod || ''}</span>
+                <td colSpan={1} className="border-r border-black py-0.5 px-1 leading-none text-left font-normal">
+                  Forma de<br />pago
+                </td>
+                <td colSpan={5} className="py-0.5 px-1 text-left font-bold uppercase">
+                  {order.paymentMethod || ''}
                 </td>
               </tr>
 
               {/* Billing Split Row */}
               <tr>
-                <td colSpan={3} className="border-r border-black p-1.5 align-top">
+                <td colSpan={2} className="border-r border-black p-1.5 align-top w-1/2">
                   <div className="space-y-1">
-                    <div>
-                      <span>Importe facturado:(S/.)</span>{' '}
-                      <span className="font-mono font-bold ml-1">{order.billedAmount ? `S/. ${formattedBilled}` : ''}</span>
+                    <div className="flex items-center overflow-hidden whitespace-nowrap">
+                      <span className="font-normal mr-1">Importe facturado:(S/.)</span>
+                      <span className="font-mono font-bold">{order.billedAmount ? formattedBilled : ''}</span>
                     </div>
-                    <div>
-                      <span>Nombre:</span>{' '}
+                    <div className="overflow-hidden whitespace-nowrap">
+                      <span className="font-normal">Nombre:</span>{' '}
                       <span className="font-bold uppercase ml-1">{order.billingName || ''}</span>
                     </div>
-                    <div>
-                      <span>RUC/DNI:</span>{' '}
+                    <div className="overflow-hidden whitespace-nowrap">
+                      <span className="font-normal">RUC/DNI:</span>{' '}
                       <span className="font-mono font-bold ml-1">{order.billingRucDni || ''}</span>
                     </div>
                   </div>
                 </td>
-                <td colSpan={3} className="p-1.5 align-top">
+                <td colSpan={4} className="p-1.5 align-top w-1/2">
                   <div className="space-y-1">
-                    <div>
-                      <span>Importe facturado:(S/.)</span>...........................................................
+                    <div className="overflow-hidden whitespace-nowrap">
+                      <span className="font-normal">Importe facturado:(S/.)</span>....................................
                     </div>
-                    <div>
-                      <span>Nombre:</span>....................................................................................
+                    <div className="overflow-hidden whitespace-nowrap">
+                      <span className="font-normal">Nombre:</span>....................................................
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center overflow-hidden whitespace-nowrap">
                       <div>
-                        <span>RUC/DNI:</span>..................................................................................
+                        <span className="font-normal">RUC/DNI:</span>................
                       </div>
                       <div>
-                        <span>Pendiente:</span>
-                        <span className="font-mono font-bold ml-1">{order.pendingAmount ? `S/. ${formattedPending}` : '.................................'}</span>
+                        <span className="font-normal">Pendiente:</span>
+                        <span className="font-mono font-bold ml-1">{order.pendingAmount ? formattedPending : '...............'}</span>
                       </div>
                     </div>
                   </div>
@@ -283,54 +326,58 @@ _Generado desde TexFlow Almacén_`;
             </tbody>
           </table>
 
-          {/* 4. Observaciones & Prestamo de Prendas */}
+          {/* 4. Observaciones */}
           <div className="mb-3 px-1 space-y-1 text-[10.5px]">
-            <div>
-              <span>Observaciones: </span>
-              <span className="font-bold uppercase">{order.observations || ''}</span>
+            <div className="font-normal">
+              Observaciones:
             </div>
-            <div className="font-bold uppercase tracking-wider text-[11px]">
-              PRESTAMO DE PRENDAS
+            <div>
+              {order.observations ? (
+                <span className="font-bold uppercase whitespace-pre-wrap">{order.observations}</span>
+              ) : (
+                <div className="overflow-hidden whitespace-nowrap font-mono">
+                  ........................................................................................................................................................................
+                </div>
+              )}
             </div>
           </div>
 
           {/* 5. (PARA SER LLENADO POR ALMACÉN) Section */}
           <div className="px-1 text-[10px]">
-            <div className="font-bold uppercase text-[10.5px] mb-1">
-              (PARA SER LLENADO POR ALMACÉN)
-            </div>
-
-            <div className="grid grid-cols-12 gap-2 items-start">
-              {/* Dealer & Factura Lines */}
-              <div className="col-span-4 space-y-1.5">
-                <div>
-                  <span className="font-bold">DEALER:</span>................................................................................
+            <div className="grid grid-cols-12 gap-3 items-start">
+              {/* Column 1: Title + Dealer + # Factura */}
+              <div className="col-span-4 space-y-1">
+                <div className="font-bold uppercase text-[10px] mb-1">
+                  (PARA SER LLENADO POR ALMACÉN)
                 </div>
-                <div>
-                  <span className="font-bold"># FACTURA:</span>...........................................................................
+                <div className="overflow-hidden whitespace-nowrap">
+                  <span className="font-bold">DEALER:</span>...................................................
                 </div>
-              </div>
-
-              {/* Bolívar & Factura Lines */}
-              <div className="col-span-4 space-y-1.5">
-                <div>
-                  <span className="font-bold">BOLÍVAR:</span>.....................................................................
-                </div>
-                <div>
-                  <span className="font-bold"># FACTURA:</span>................................................................
+                <div className="overflow-hidden whitespace-nowrap pt-2">
+                  <span className="font-bold"># FACTURA:</span>..............................................
                 </div>
               </div>
 
-              {/* Boxed Pendiente Por Facturar */}
+              {/* Column 2: Bolívar + # Factura (aligned with Column 1 fields) */}
+              <div className="col-span-4 space-y-1 pt-[15px]">
+                <div className="overflow-hidden whitespace-nowrap">
+                  <span className="font-bold">BOLÍVAR:</span>..................................................
+                </div>
+                <div className="overflow-hidden whitespace-nowrap pt-2">
+                  <span className="font-bold"># FACTURA:</span>..............................................
+                </div>
+              </div>
+
+              {/* Column 3: Boxed Pendiente Por Facturar */}
               <div className="col-span-4 border border-black p-1.5 space-y-1 bg-white">
-                <div className="font-bold text-center text-[10px] uppercase border-b border-gray-300 pb-0.5">
+                <div className="font-bold text-[10px] uppercase">
                   PENDIENTE POR FACTURAR
                 </div>
-                <div>
-                  <span className="font-bold">DEALER:</span>.................................................
+                <div className="overflow-hidden whitespace-nowrap">
+                  <span className="font-bold">DEALER:</span>............................................
                 </div>
-                <div>
-                  <span className="font-bold">BOLÍVAR:</span>...............................................
+                <div className="overflow-hidden whitespace-nowrap">
+                  <span className="font-bold">BOLÍVAR:</span>..........................................
                 </div>
               </div>
             </div>

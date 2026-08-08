@@ -157,7 +157,48 @@ service cloud.firestore {
 
     // 8. Sales Orders (Ficha de Venta / Orden de Venta)
     match /sales_orders/{orderId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if isValidId(orderId)
+        && incoming(request).orderNo is string
+        && incoming(request).orderNo.size() <= 50
+        && incoming(request).clientName is string
+        && incoming(request).clientName.size() <= 200
+        && incoming(request).clientRucDni is string
+        && incoming(request).clientRucDni.size() <= 20
+        && incoming(request).date is string
+        && incoming(request).date.size() <= 50
+        && incoming(request).items is list
+        && incoming(request).items.size() <= 100
+        && (incoming(request).totalAmount is int || incoming(request).totalAmount is float || incoming(request).totalAmount is number)
+        && incoming(request).totalAmount >= 0
+        && (!('sellerName' in incoming(request)) || (incoming(request).sellerName is string && incoming(request).sellerName.size() <= 200))
+        && (!('fiscalAddress' in incoming(request)) || (incoming(request).fiscalAddress is string && incoming(request).fiscalAddress.size() <= 500))
+        && (!('dispatchContactName' in incoming(request)) || (incoming(request).dispatchContactName is string && incoming(request).dispatchContactName.size() <= 200))
+        && (!('dispatchContactPhone' in incoming(request)) || (incoming(request).dispatchContactPhone is string && incoming(request).dispatchContactPhone.size() <= 50))
+        && (!('dispatchAddress' in incoming(request)) || (incoming(request).dispatchAddress is string && incoming(request).dispatchAddress.size() <= 500))
+        && (!('floorNumber' in incoming(request)) || (incoming(request).floorNumber is string && incoming(request).floorNumber.size() <= 50))
+        && (!('dispatchDate' in incoming(request)) || (incoming(request).dispatchDate is string && incoming(request).dispatchDate.size() <= 50))
+        && (!('dispatchTime' in incoming(request)) || (incoming(request).dispatchTime is string && incoming(request).dispatchTime.size() <= 50))
+        && (!('paymentMethod' in incoming(request)) || (incoming(request).paymentMethod is string && incoming(request).paymentMethod.size() <= 200))
+        && (!('billingName' in incoming(request)) || (incoming(request).billingName is string && incoming(request).billingName.size() <= 200))
+        && (!('billingRucDni' in incoming(request)) || (incoming(request).billingRucDni is string && incoming(request).billingRucDni.size() <= 20))
+        && (!('observations' in incoming(request)) || (incoming(request).observations is string && incoming(request).observations.size() <= 1000))
+        && incoming(request).appVersion is string
+        && incoming(request).appVersion.size() <= 20;
+      allow update: if isValidId(orderId)
+        && incoming(request).orderNo is string
+        && incoming(request).orderNo.size() <= 50
+        && incoming(request).clientName is string
+        && incoming(request).clientName.size() <= 200
+        && incoming(request).clientRucDni is string
+        && incoming(request).clientRucDni.size() <= 20
+        && incoming(request).items is list
+        && incoming(request).items.size() <= 100
+        && (incoming(request).totalAmount is int || incoming(request).totalAmount is float || incoming(request).totalAmount is number)
+        && incoming(request).totalAmount >= 0
+        && incoming(request).appVersion is string
+        && incoming(request).appVersion.size() <= 20;
+      allow delete: if isValidId(orderId);
     }
   }
 }

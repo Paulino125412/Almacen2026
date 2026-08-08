@@ -228,7 +228,7 @@ export default function SearchableCombobox({
               </div>
 
               {error && (
-                <div className="text-[10px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-1.5 rounded border border-red-250 dark:border-red-900/40">
+                <div className="text-[10px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 p-1.5 rounded border border-red-200 dark:border-red-900/40">
                   {error}
                 </div>
               )}
