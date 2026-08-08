@@ -61,9 +61,9 @@ export default function SalesOrderManager({
 
   // Editing state ID
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingOrderNo, setEditingOrderNo] = useState<string>('');
 
   // Form State
-  const [orderNo, setOrderNo] = useState('');
   const [sellerName, setSellerName] = useState('');
   const [sellerId, setSellerId] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -133,14 +133,6 @@ export default function SalesOrderManager({
       totalAmount: 0
     }
   ]);
-
-  // Auto-generate order number on load if empty
-  useEffect(() => {
-    if (!orderNo && !editingId) {
-      const nextNum = String(orders.length + 1).padStart(4, '0');
-      setOrderNo(`FV-${nextNum}`);
-    }
-  }, [orders.length, orderNo, editingId]);
 
   // Load Sales Orders from Firestore or Local Storage
   useEffect(() => {
@@ -266,8 +258,7 @@ export default function SalesOrderManager({
   // Reset Form
   const handleResetForm = () => {
     setEditingId(null);
-    const nextNum = String(orders.length + 1).padStart(4, '0');
-    setOrderNo(`FV-${nextNum}`);
+    setEditingOrderNo('');
     setSellerName(sellers.length > 0 ? sellers[0].name : currentOperator);
     setSellerId(sellers.length > 0 ? sellers[0].id : '');
     setDate(new Date().toISOString().split('T')[0]);
@@ -322,7 +313,7 @@ export default function SalesOrderManager({
     setLoading(true);
     setAlertError(null);
 
-    const generatedOrderNo = orderNo.trim() || `FV-${String(orders.length + 1).padStart(4, '0')}`;
+    const generatedOrderNo = (editingId && editingOrderNo) ? editingOrderNo : `FV-${Date.now()}`;
 
     const payload: Omit<SalesOrder, 'id'> = {
       orderNo: generatedOrderNo,
@@ -381,7 +372,7 @@ export default function SalesOrderManager({
   // Edit Order Load
   const handleEditOrder = (order: SalesOrder) => {
     setEditingId(order.id);
-    setOrderNo(order.orderNo || '');
+    setEditingOrderNo(order.orderNo || '');
     setSellerName(order.sellerName || '');
     setSellerId(order.sellerId || '');
     setDate(order.date || new Date().toISOString().split('T')[0]);
@@ -436,7 +427,7 @@ export default function SalesOrderManager({
     const q = searchQuery.trim().toLowerCase();
     if (!q) return orders;
     return orders.filter(o => 
-      o.orderNo.toLowerCase().includes(q) ||
+      (o.orderNo || '').toLowerCase().includes(q) ||
       o.clientName.toLowerCase().includes(q) ||
       o.clientRucDni.toLowerCase().includes(q) ||
       o.sellerName.toLowerCase().includes(q)
