@@ -180,7 +180,7 @@ export default function CatalogManager({
   };
 
   const checkSimilarity = (newName: string, existingItems: { name: string }[]): string | null => {
-    const s1 = newName.toLowerCase().replace(/\s+/g, ' ').trim();
+    const s1 = (newName || '').toLowerCase().replace(/\s+/g, ' ').trim();
     if (!s1) return null;
 
     for (const item of existingItems) {
@@ -410,12 +410,12 @@ export default function CatalogManager({
 
   const handleExportCatalogExcel = () => {
     let listToExport: any[] = [];
+    const q = (searchQuery || '').toLowerCase().trim();
     if (activeTab === 'clients') {
       listToExport = clients.filter(c => {
-        const q = searchQuery.toLowerCase().trim();
         if (!q) return true;
         return (
-          c.name.toLowerCase().includes(q) ||
+          (c.name || '').toLowerCase().includes(q) ||
           (c.dni || '').toLowerCase().includes(q) ||
           (c.email || '').toLowerCase().includes(q) ||
           (c.phone || '').toLowerCase().includes(q) ||
@@ -424,28 +424,25 @@ export default function CatalogManager({
       });
     } else if (activeTab === 'articles') {
       listToExport = articles.filter(a => {
-        const q = searchQuery.toLowerCase().trim();
         if (!q) return true;
         const prov = providers.find(p => p.id === a.providerId);
         return (
           (a.code || '').toLowerCase().includes(q) ||
-          a.name.toLowerCase().includes(q) ||
+          (a.name || '').toLowerCase().includes(q) ||
           (a.description || '').toLowerCase().includes(q) ||
           (prov?.name || '').toLowerCase().includes(q)
         );
       });
     } else if (activeTab === 'providers') {
       listToExport = providers.filter(p => {
-        const q = searchQuery.toLowerCase().trim();
         if (!q) return true;
-        return p.name.toLowerCase().includes(q);
+        return (p.name || '').toLowerCase().includes(q);
       });
     } else if (activeTab === 'sellers') {
       listToExport = sellers.filter(s => {
-        const q = searchQuery.toLowerCase().trim();
         if (!q) return true;
         return (
-          s.name.toLowerCase().includes(q) ||
+          (s.name || '').toLowerCase().includes(q) ||
           (s.email || '').toLowerCase().includes(q) ||
           (s.phone || '').toLowerCase().includes(q)
         );
@@ -929,9 +926,9 @@ export default function CatalogManager({
                 </thead>
                 <tbody className="divide-y divide-app-border/40 text-sm bg-app-surface">
                   {providers.filter(p => {
-                    const q = searchQuery.toLowerCase().trim();
+                    const q = (searchQuery || '').toLowerCase().trim();
                     if (!q) return true;
-                    return p.name.toLowerCase().includes(q);
+                    return (p.name || '').toLowerCase().includes(q);
                   }).length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-10 text-center">
@@ -971,9 +968,9 @@ export default function CatalogManager({
                     </tr>
                   ) : (
                     providers.filter(p => {
-                      const q = searchQuery.toLowerCase().trim();
+                      const q = (searchQuery || '').toLowerCase().trim();
                       if (!q) return true;
-                      return p.name.toLowerCase().includes(q);
+                      return (p.name || '').toLowerCase().includes(q);
                     }).map(p => (
                       <tr key={p.id} className="hover:bg-app-bg/40 border-b border-app-border/60 text-xs">
                         <td className="p-3 font-semibold text-app-text">{p.name}</td>
@@ -1048,12 +1045,12 @@ export default function CatalogManager({
                 </thead>
                 <tbody className="divide-y divide-app-border/40 text-sm bg-app-surface">
                   {articles.filter(a => {
-                    const q = searchQuery.toLowerCase().trim();
+                    const q = (searchQuery || '').toLowerCase().trim();
                     if (!q) return true;
                     const prov = providers.find(p => p.id === a.providerId);
                     return (
                       (a.code || '').toLowerCase().includes(q) ||
-                      a.name.toLowerCase().includes(q) ||
+                      (a.name || '').toLowerCase().includes(q) ||
                       (a.description || '').toLowerCase().includes(q) ||
                       (prov?.name || '').toLowerCase().includes(q)
                     );
@@ -1096,12 +1093,12 @@ export default function CatalogManager({
                     </tr>
                   ) : (
                     articles.filter(a => {
-                      const q = searchQuery.toLowerCase().trim();
+                      const q = (searchQuery || '').toLowerCase().trim();
                       if (!q) return true;
                       const prov = providers.find(p => p.id === a.providerId);
                       return (
                         (a.code || '').toLowerCase().includes(q) ||
-                        a.name.toLowerCase().includes(q) ||
+                        (a.name || '').toLowerCase().includes(q) ||
                         (a.description || '').toLowerCase().includes(q) ||
                         (prov?.name || '').toLowerCase().includes(q)
                       );
@@ -1156,10 +1153,10 @@ export default function CatalogManager({
                 </thead>
                 <tbody className="divide-y divide-app-border/40 text-sm bg-app-surface">
                   {clients.filter(c => {
-                    const q = searchQuery.toLowerCase().trim();
+                    const q = (searchQuery || '').toLowerCase().trim();
                     if (!q) return true;
                     return (
-                      c.name.toLowerCase().includes(q) ||
+                      (c.name || '').toLowerCase().includes(q) ||
                       (c.dni || '').toLowerCase().includes(q) ||
                       (c.email || '').toLowerCase().includes(q) ||
                       (c.phone || '').toLowerCase().includes(q) ||
@@ -1205,10 +1202,10 @@ export default function CatalogManager({
                     </tr>
                   ) : (
                     clients.filter(c => {
-                      const q = searchQuery.toLowerCase().trim();
+                      const q = (searchQuery || '').toLowerCase().trim();
                       if (!q) return true;
                       return (
-                        c.name.toLowerCase().includes(q) ||
+                        (c.name || '').toLowerCase().includes(q) ||
                         (c.dni || '').toLowerCase().includes(q) ||
                         (c.email || '').toLowerCase().includes(q) ||
                         (c.phone || '').toLowerCase().includes(q) ||
@@ -1266,10 +1263,10 @@ export default function CatalogManager({
                 </thead>
                 <tbody className="divide-y divide-app-border/40 text-sm bg-app-surface">
                   {sellers.filter(s => {
-                    const q = searchQuery.toLowerCase().trim();
+                    const q = (searchQuery || '').toLowerCase().trim();
                     if (!q) return true;
                     return (
-                      s.name.toLowerCase().includes(q) ||
+                      (s.name || '').toLowerCase().includes(q) ||
                       (s.email || '').toLowerCase().includes(q) ||
                       (s.phone || '').toLowerCase().includes(q)
                     );
@@ -1312,10 +1309,10 @@ export default function CatalogManager({
                     </tr>
                   ) : (
                     sellers.filter(s => {
-                      const q = searchQuery.toLowerCase().trim();
+                      const q = (searchQuery || '').toLowerCase().trim();
                       if (!q) return true;
                       return (
-                        s.name.toLowerCase().includes(q) ||
+                        (s.name || '').toLowerCase().includes(q) ||
                         (s.email || '').toLowerCase().includes(q) ||
                         (s.phone || '').toLowerCase().includes(q)
                       );

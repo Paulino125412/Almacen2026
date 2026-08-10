@@ -169,8 +169,8 @@ _Generado automáticamente desde Sistema TexFlow Almacén_`;
       // 1. General search term (Matches PL No, Client name, Seller name)
       const clientName = getClientName(pl.clientId);
       const sellerName = getSellerName(pl.sellerId);
-      const searchText = `${pl.packingListNo} ${clientName} ${sellerName}`.toLowerCase();
-      const matchesSearch = searchText.includes(searchTerm.toLowerCase());
+      const searchText = `${pl.packingListNo || ''} ${clientName || ''} ${sellerName || ''}`.toLowerCase();
+      const matchesSearch = searchText.includes((searchTerm || '').toLowerCase());
 
       // 2. Type Filter (Roll or Cut)
       const matchesType = filterType === 'all' || pl.type === filterType;

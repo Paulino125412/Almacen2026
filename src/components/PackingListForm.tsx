@@ -478,9 +478,9 @@ export default function PackingListForm({
   // Save new provider on the fly
   const handleAddNewProvider = async (name: string, fields: Record<string, string>): Promise<string> => {
     try {
-      const hasLot = fields.hasLot ? fields.hasLot.trim().toLowerCase() !== 'no' : true;
-      const hasPartida = fields.hasPartida ? fields.hasPartida.trim().toLowerCase() !== 'no' : true;
-      const hasTono = fields.hasTono ? fields.hasTono.trim().toLowerCase() !== 'no' : true;
+      const hasLot = fields.hasLot ? (fields.hasLot || '').trim().toLowerCase() !== 'no' : true;
+      const hasPartida = fields.hasPartida ? (fields.hasPartida || '').trim().toLowerCase() !== 'no' : true;
+      const hasTono = fields.hasTono ? (fields.hasTono || '').trim().toLowerCase() !== 'no' : true;
       
       const newProviderData = {
         name,
@@ -922,7 +922,7 @@ export default function PackingListForm({
       if (editingPackingList && !isDuplicate && pl.id === editingPackingList.id) {
         return false;
       }
-      return pl.packingListNo.trim().toLowerCase() === packingListNo.trim().toLowerCase();
+      return (pl.packingListNo || '').trim().toLowerCase() === (packingListNo || '').trim().toLowerCase();
     });
 
     if (isDuplicatePLNo) {

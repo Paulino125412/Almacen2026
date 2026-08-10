@@ -202,7 +202,7 @@ export default function SalesOrderManager({
         const query = value.trim().toLowerCase();
         const found = articles.find(a => 
           (a.code && a.code.toLowerCase().trim() === query) || 
-          a.name.toLowerCase().trim() === query
+          (a.name && a.name.toLowerCase().trim() === query)
         );
         if (found) {
           updated.articleId = found.id;
@@ -212,7 +212,7 @@ export default function SalesOrderManager({
       } else if (field === 'description' && typeof value === 'string' && value.trim()) {
         const query = value.trim().toLowerCase();
         const found = articles.find(a => 
-          a.name.toLowerCase().trim() === query ||
+          (a.name && a.name.toLowerCase().trim() === query) ||
           (a.code && a.code.toLowerCase().trim() === query)
         );
         if (found) {
@@ -431,9 +431,9 @@ export default function SalesOrderManager({
     if (!q) return orders;
     return orders.filter(o => 
       (o.orderNo || '').toLowerCase().includes(q) ||
-      o.clientName.toLowerCase().includes(q) ||
-      o.clientRucDni.toLowerCase().includes(q) ||
-      o.sellerName.toLowerCase().includes(q)
+      (o.clientName || '').toLowerCase().includes(q) ||
+      (o.clientRucDni || '').toLowerCase().includes(q) ||
+      (o.sellerName || '').toLowerCase().includes(q)
     );
   }, [orders, searchQuery]);
 
@@ -522,7 +522,8 @@ export default function SalesOrderManager({
                 onChange={e => {
                   const val = e.target.value;
                   setSellerName(val);
-                  const found = sellers.find(s => s.name.toLowerCase().trim() === val.toLowerCase().trim() || s.id === val);
+                  const valClean = (val || '').toLowerCase().trim();
+                  const found = sellers.find(s => (s.name || '').toLowerCase().trim() === valClean || s.id === val);
                   if (found) {
                     setSellerId(found.id);
                     setSellerName(found.name);
@@ -727,9 +728,10 @@ export default function SalesOrderManager({
                   onChange={e => {
                     const val = e.target.value;
                     setClientName(val);
+                    const valClean = (val || '').toLowerCase().trim();
                     const found = clients.find(c => 
-                      c.name.toLowerCase().trim() === val.toLowerCase().trim() ||
-                      (c.dni && c.dni.toLowerCase().trim() === val.toLowerCase().trim())
+                      (c.name || '').toLowerCase().trim() === valClean ||
+                      (c.dni && c.dni.toLowerCase().trim() === valClean)
                     );
                     if (found) {
                       handleSelectClient(found.id);
@@ -758,9 +760,10 @@ export default function SalesOrderManager({
                     const val = e.target.value;
                     setClientRucDni(val);
                     if (val.trim()) {
+                      const valClean = (val || '').trim().toLowerCase();
                       const found = clients.find(c => 
-                        (c.dni && c.dni.trim().toLowerCase() === val.trim().toLowerCase()) ||
-                        c.name.toLowerCase().trim() === val.toLowerCase().trim()
+                        (c.dni && (c.dni || '').toString().trim().toLowerCase() === valClean) ||
+                        (c.name && (c.name || '').toString().trim().toLowerCase() === valClean)
                       );
                       if (found) {
                         handleSelectClient(found.id);

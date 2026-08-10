@@ -85,35 +85,35 @@ export default function QuickSearchPalette({
 
   // Search filter logic
   const filteredResults = React.useMemo((): GroupedResults => {
-    const q = query.trim().toLowerCase();
+    const q = (query || '').trim().toLowerCase();
     if (!q) {
       return { clients: [], articles: [], packingLists: [], inventory: [] };
     }
 
     const matchedClients = clients.filter(c => 
-      c.name.toLowerCase().includes(q) || 
+      (c.name || '').toLowerCase().includes(q) || 
       (c.dni || '').toLowerCase().includes(q) ||
       (c.email || '').toLowerCase().includes(q)
     ).slice(0, 5);
 
     const matchedArticles = articles.filter(a => 
-      a.name.toLowerCase().includes(q) || 
+      (a.name || '').toLowerCase().includes(q) || 
       (a.description || '').toLowerCase().includes(q)
     ).slice(0, 5);
 
     const matchedPackingLists = packingLists.filter(pl => 
-      pl.packingListNo.toLowerCase().includes(q) ||
+      (pl.packingListNo || '').toLowerCase().includes(q) ||
       (pl.guideNumber || '').toLowerCase().includes(q)
     ).slice(0, 6);
 
     const matchedInventory = inventory.filter(r => {
       const art = articles.find(a => a.id === r.articleId)?.name || '';
-      return r.rollNumber.toLowerCase().includes(q) ||
+      return (r.rollNumber || '').toLowerCase().includes(q) ||
         (r.lot || '').toLowerCase().includes(q) ||
         (r.partida || '').toLowerCase().includes(q) ||
         (r.tono || '').toLowerCase().includes(q) ||
         (r.status || '').toLowerCase().includes(q) ||
-        art.toLowerCase().includes(q);
+        (art || '').toLowerCase().includes(q);
     }).slice(0, 6);
 
     return {

@@ -93,7 +93,7 @@ export default function BarcodeScannerModal({
 
     while ((match = kvRegex.exec(trimmed)) !== null) {
       hasKV = true;
-      const key = match[1].toLowerCase();
+      const key = (match[1] || '').toLowerCase();
       const val = match[2].trim();
       if (key.includes('roll') || key.includes('rollo') || key.includes('nº')) {
         kvResult.rollNumber = val.toUpperCase();
@@ -204,7 +204,10 @@ export default function BarcodeScannerModal({
         if (devices && devices.length > 0) {
           setCameras(devices);
           // Prefer back camera (usually labeled environment or contains "back")
-          const backCam = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('entorno') || d.label.toLowerCase().includes('rear'));
+          const backCam = devices.find(d => {
+            const label = (d.label || '').toLowerCase();
+            return label.includes('back') || label.includes('entorno') || label.includes('rear');
+          });
           setSelectedCameraId(backCam ? backCam.id : devices[0].id);
         } else {
           setErrorMsg('No se detectaron cámaras en este dispositivo.');
@@ -283,7 +286,7 @@ export default function BarcodeScannerModal({
         if (
           errStr.includes('NotReadableError') ||
           (startErr && startErr.name === 'NotReadableError') ||
-          errStr.toLowerCase().includes('could not start video source')
+          (errStr || '').toLowerCase().includes('could not start video source')
         ) {
           console.warn('Camera start failed with NotReadableError. Retrying in 500ms...', startErr);
           await new Promise((resolve) => setTimeout(resolve, 500));
