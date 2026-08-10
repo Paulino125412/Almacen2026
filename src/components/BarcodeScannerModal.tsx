@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Camera, RefreshCw, AlertTriangle, CheckCircle, Info } from 'lucide-react';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import type { Html5Qrcode } from 'html5-qrcode';
 
 interface BarcodeScannerModalProps {
   isOpen: boolean;
@@ -199,9 +199,15 @@ export default function BarcodeScannerModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    Html5Qrcode.getCameras()
+    let isMounted = true;
+    import('html5-qrcode')
+      .then(({ Html5Qrcode }) => {
+        if (!isMounted) return null;
+        return Html5Qrcode.getCameras();
+      })
       .then((devices) => {
-        if (devices && devices.length > 0) {
+        if (!isMounted || !devices) return;
+        if (devices.length > 0) {
           setCameras(devices);
           // Prefer back camera (usually labeled environment or contains "back")
           const backCam = devices.find(d => {
@@ -214,11 +220,13 @@ export default function BarcodeScannerModal({
         }
       })
       .catch((err) => {
+        if (!isMounted) return;
         console.error('Error getting cameras:', err);
         setErrorMsg('Permiso de cámara denegado o inaccesible.');
       });
 
     return () => {
+      isMounted = false;
       stopScanning();
     };
   }, [isOpen]);
@@ -243,6 +251,7 @@ export default function BarcodeScannerModal({
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     try {
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
       const html5Qrcode = new Html5Qrcode(scannerId, {
         formatsToSupport: [
           Html5QrcodeSupportedFormats.QR_CODE,

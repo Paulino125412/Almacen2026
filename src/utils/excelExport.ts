@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+import type ExcelJS from 'exceljs';
 import { Client, Seller, Provider, Article, RollItem, PackingList } from '../types';
 
 /**
@@ -220,6 +220,7 @@ export async function exportCatalogToExcel(
   items: any[],
   extraContext?: { providers?: Provider[]; articles?: Article[] }
 ) {
+  const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'JUDITEX';
 
@@ -296,6 +297,7 @@ export async function exportInventoryToExcel(
   articles: Article[],
   providers: Provider[]
 ) {
+  const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'JUDITEX';
 
@@ -427,6 +429,7 @@ export async function exportPackingListSummaryToExcel(
   clients: Client[],
   sellers: Seller[]
 ) {
+  const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'JUDITEX';
 
@@ -531,6 +534,7 @@ export async function exportPackingListFullDetailsToExcel(
   clients: Client[],
   sellers: Seller[]
 ) {
+  const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'JUDITEX';
 
@@ -679,6 +683,7 @@ export async function exportSinglePackingListToExcel(
   seller?: Seller,
   articles?: Article[]
 ) {
+  const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'JUDITEX';
 
