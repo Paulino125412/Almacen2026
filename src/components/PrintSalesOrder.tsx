@@ -148,6 +148,10 @@ export default function PrintSalesOrder({
 
     try {
       setIsGeneratingPDF(true);
+      if (document.fonts) {
+        await document.fonts.ready;
+      }
+
       const html2pdfModule = await import('html2pdf.js');
       const html2pdf = (html2pdfModule.default || html2pdfModule) as any;
 
@@ -155,7 +159,7 @@ export default function PrintSalesOrder({
       const filename = `Ficha_Venta_${clientNameClean}_${order.orderNo || ''}.pdf`;
 
       const opt = {
-        margin: 4,
+        margin: 5,
         filename: filename,
         image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: {
@@ -164,7 +168,7 @@ export default function PrintSalesOrder({
           logging: false,
           scrollX: 0,
           scrollY: 0,
-          windowWidth: 1200,
+          windowWidth: 1024,
           onclone: (clonedDoc: Document) => {
             // Convert oklch() color functions in style tags to exact rgb/rgba
             const styleTags = Array.from(clonedDoc.querySelectorAll('style'));
@@ -183,19 +187,44 @@ export default function PrintSalesOrder({
               }
             });
 
-            // Inject custom CSS into clonedDoc to guarantee clean rendering without overlapping text or broken cell layouts
+            // Inject custom CSS into clonedDoc to guarantee a strict mirror of @media print
             const pdfStyle = clonedDoc.createElement('style');
             pdfStyle.textContent = `
+              #print-section {
+                background: #ffffff !important;
+                background-color: #ffffff !important;
+                background-image: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+              }
+              #print-section > div {
+                background: #ffffff !important;
+                background-color: #ffffff !important;
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
               .sales-ficha-print-sheet {
-                width: 790px !important;
-                max-width: 790px !important;
-                min-width: 790px !important;
+                width: 200mm !important;
+                max-width: 200mm !important;
+                min-width: 200mm !important;
+                max-height: 138mm !important;
+                height: auto !important;
                 margin: 0 auto !important;
-                padding: 12px !important;
+                padding: 0 !important;
                 background-color: #ffffff !important;
                 color: #000000 !important;
                 font-family: Arial, Helvetica, sans-serif !important;
                 box-sizing: border-box !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+                box-shadow: none !important;
+                border: none !important;
               }
               .sales-ficha-print-sheet * {
                 box-sizing: border-box !important;
