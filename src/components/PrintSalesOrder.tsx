@@ -224,52 +224,6 @@ export default function PrintSalesOrder({
                 box-sizing: border-box !important;
                 color: #000000 !important;
               }
-              .sales-ficha-print-sheet table {
-                width: 100% !important;
-                border-collapse: collapse !important;
-                table-layout: fixed !important;
-                font-family: Arial, Helvetica, sans-serif !important;
-              }
-              .sales-ficha-print-sheet th,
-              .sales-ficha-print-sheet td {
-                padding: 4px 6px !important;
-                vertical-align: middle !important;
-                line-height: 1.35 !important;
-                font-size: 10.5px !important;
-                border-color: #000000 !important;
-              }
-              .sales-ficha-print-sheet th {
-                font-size: 10px !important;
-              }
-              .sales-ficha-print-sheet thead tr {
-                background-color: #e5e7eb !important;
-              }
-              .sales-ficha-print-sheet table table {
-                border: none !important;
-              }
-              .sales-ficha-print-sheet table table td {
-                border: none !important;
-                border-bottom: 1px solid #000000 !important;
-                padding: 2px 4px !important;
-              }
-              .sales-ficha-print-sheet table table tr:last-child td {
-                border-bottom: none !important;
-              }
-              .sales-ficha-print-sheet .leading-tight {
-                line-height: 1.35 !important;
-              }
-              .sales-ficha-print-sheet br {
-                display: block !important;
-                content: "" !important;
-                margin-top: 1px !important;
-              }
-              .sales-ficha-print-sheet .border-dotted {
-                border-bottom-style: dotted !important;
-                border-bottom-width: 1px !important;
-                border-bottom-color: #000000 !important;
-                min-height: 1px !important;
-                display: inline-block !important;
-              }
             `;
             clonedDoc.head.appendChild(pdfStyle);
           }
