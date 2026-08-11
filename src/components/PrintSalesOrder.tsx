@@ -214,7 +214,6 @@ export default function PrintSalesOrder({
                 max-height: 138mm !important;
                 height: auto !important;
                 margin: 0 auto !important;
-                padding: 0 !important;
                 background-color: #ffffff !important;
                 color: #000000 !important;
                 font-family: Arial, Helvetica, sans-serif !important;
