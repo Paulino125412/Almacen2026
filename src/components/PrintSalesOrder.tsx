@@ -211,17 +211,12 @@ export default function PrintSalesOrder({
                 width: 200mm !important;
                 max-width: 200mm !important;
                 min-width: 200mm !important;
-                max-height: 138mm !important;
                 height: auto !important;
                 margin: 0 auto !important;
                 background-color: #ffffff !important;
                 color: #000000 !important;
                 font-family: Arial, Helvetica, sans-serif !important;
                 box-sizing: border-box !important;
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-                page-break-after: avoid !important;
-                break-after: avoid !important;
                 box-shadow: none !important;
                 border: none !important;
               }
