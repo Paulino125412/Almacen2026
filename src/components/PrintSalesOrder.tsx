@@ -166,6 +166,7 @@ export default function PrintSalesOrder({
           scale: 2,
           useCORS: true,
           logging: false,
+          foreignObjectRendering: true,
           scrollX: 0,
           scrollY: 0,
           windowWidth: 1024,
@@ -231,6 +232,9 @@ export default function PrintSalesOrder({
                 display: block !important;
                 content: "" !important;
                 margin-top: 1px !important;
+              }
+              .sales-ficha-print-sheet .flex.justify-between.items-center > div {
+                white-space: nowrap !important;
               }
             `;
             clonedDoc.head.appendChild(pdfStyle);
