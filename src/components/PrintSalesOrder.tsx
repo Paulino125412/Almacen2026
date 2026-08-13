@@ -146,11 +146,6 @@ export default function PrintSalesOrder({
     const element = document.querySelector('.sales-ficha-print-sheet') as HTMLElement;
     if (!element) return;
 
-    console.log('[PDF DEBUG] ANTES -> offsetWidth=' + element.offsetWidth +
-      ' clientWidth=' + element.clientWidth +
-      ' rectWidth=' + element.getBoundingClientRect().width +
-      ' computedWidth=' + window.getComputedStyle(element).width);
-
     try {
       setIsGeneratingPDF(true);
       if (document.fonts) {
@@ -171,7 +166,7 @@ export default function PrintSalesOrder({
           scale: 1,
           useCORS: true,
           logging: false,
-          foreignObjectRendering: false,
+          foreignObjectRendering: true,
           scrollX: 0,
           scrollY: 0,
           windowWidth: 1024,
@@ -242,12 +237,18 @@ export default function PrintSalesOrder({
               .sales-ficha-print-sheet .flex.justify-between.items-center > div {
                 white-space: nowrap !important;
               }
+              .sales-ficha-print-sheet .flex.justify-between.items-center {
+                display: table !important;
+                width: 100% !important;
+              }
+              .sales-ficha-print-sheet .flex.justify-between.items-center > div {
+                display: table-cell !important;
+                vertical-align: middle !important;
+              }
+              .sales-ficha-print-sheet .flex.justify-between.items-center > div:last-child {
+                text-align: right !important;
+              }
             `;
-            const clonedElement = clonedDoc.querySelector('.sales-ficha-print-sheet') as HTMLElement;
-            if (clonedElement) {
-              console.log('[PDF DEBUG] CLON -> offsetWidth=' + clonedElement.offsetWidth +
-                ' computedWidth=' + window.getComputedStyle(clonedElement).width);
-            }
             clonedDoc.head.appendChild(pdfStyle);
           }
         },
