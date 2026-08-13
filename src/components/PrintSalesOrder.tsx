@@ -224,6 +224,14 @@ export default function PrintSalesOrder({
                 box-sizing: border-box !important;
                 color: #000000 !important;
               }
+              .sales-ficha-print-sheet .leading-tight {
+                line-height: 1.35 !important;
+              }
+              .sales-ficha-print-sheet br {
+                display: block !important;
+                content: "" !important;
+                margin-top: 1px !important;
+              }
             `;
             clonedDoc.head.appendChild(pdfStyle);
           }
