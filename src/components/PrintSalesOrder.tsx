@@ -146,12 +146,10 @@ export default function PrintSalesOrder({
     const element = document.querySelector('.sales-ficha-print-sheet') as HTMLElement;
     if (!element) return;
 
-    console.log('[PDF DEBUG] Ancho del elemento ANTES de generar PDF:', {
-      offsetWidth: element.offsetWidth,
-      clientWidth: element.clientWidth,
-      boundingRect: element.getBoundingClientRect(),
-      computedWidth: window.getComputedStyle(element).width,
-    });
+    console.log('[PDF DEBUG] ANTES -> offsetWidth=' + element.offsetWidth +
+      ' clientWidth=' + element.clientWidth +
+      ' rectWidth=' + element.getBoundingClientRect().width +
+      ' computedWidth=' + window.getComputedStyle(element).width);
 
     try {
       setIsGeneratingPDF(true);
@@ -173,7 +171,7 @@ export default function PrintSalesOrder({
           scale: 1,
           useCORS: true,
           logging: false,
-          foreignObjectRendering: true,
+          foreignObjectRendering: false,
           scrollX: 0,
           scrollY: 0,
           windowWidth: 1024,
@@ -247,10 +245,8 @@ export default function PrintSalesOrder({
             `;
             const clonedElement = clonedDoc.querySelector('.sales-ficha-print-sheet') as HTMLElement;
             if (clonedElement) {
-              console.log('[PDF DEBUG] Ancho del elemento CLONADO (dentro de onclone):', {
-                offsetWidth: clonedElement.offsetWidth,
-                computedWidth: window.getComputedStyle(clonedElement).width,
-              });
+              console.log('[PDF DEBUG] CLON -> offsetWidth=' + clonedElement.offsetWidth +
+                ' computedWidth=' + window.getComputedStyle(clonedElement).width);
             }
             clonedDoc.head.appendChild(pdfStyle);
           }
