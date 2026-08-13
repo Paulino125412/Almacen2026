@@ -238,15 +238,10 @@ export default function PrintSalesOrder({
                 white-space: nowrap !important;
               }
               .sales-ficha-print-sheet .flex.justify-between.items-center {
-                display: table !important;
-                width: 100% !important;
-              }
-              .sales-ficha-print-sheet .flex.justify-between.items-center > div {
-                display: table-cell !important;
-                vertical-align: middle !important;
+                justify-content: flex-start !important;
               }
               .sales-ficha-print-sheet .flex.justify-between.items-center > div:last-child {
-                text-align: right !important;
+                margin-left: auto !important;
               }
             `;
             clonedDoc.head.appendChild(pdfStyle);
