@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SalesOrder, Client, Seller, Article } from '../types';
 import { Printer, X, MessageCircle, FileDown } from 'lucide-react';
+import AlertBanner from './AlertBanner';
 
 interface PrintSalesOrderProps {
   order: SalesOrder;
@@ -90,6 +91,7 @@ export default function PrintSalesOrder({
   onClose
 }: PrintSalesOrderProps) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const handlePrint = () => {
     window.print();
@@ -168,6 +170,8 @@ export default function PrintSalesOrder({
     const element = document.querySelector('.sales-ficha-print-sheet') as HTMLElement;
     if (!element) return;
 
+    setPdfError(null);
+
     try {
       setIsGeneratingPDF(true);
 
@@ -243,7 +247,7 @@ export default function PrintSalesOrder({
       }
     } catch (err: any) {
       console.error('Error al generar el PDF:', err);
-      alert(`No se pudo generar el PDF: ${err?.message || 'Por favor reintente.'}`);
+      setPdfError(err?.message || 'No se pudo generar el PDF. Por favor reintente.');
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -252,47 +256,57 @@ export default function PrintSalesOrder({
   return (
     <div id="print-section" className="fixed inset-0 bg-black/75 z-50 flex flex-col items-center justify-start overflow-y-auto p-2 sm:p-4 print:p-0 print:bg-white print:overflow-visible">
       {/* Screen Control Bar */}
-      <div className="w-full max-w-4xl bg-app-surface text-app-text border border-app-border rounded-t-xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-lg no-print print:hidden">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-sm text-app-primary">Vista Previa - Ficha de Venta</span>
+      <div className="w-full max-w-4xl bg-app-surface text-app-text border border-app-border rounded-t-xl p-3 flex flex-col gap-3 shadow-lg no-print print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-sm text-app-primary">Vista Previa - Ficha de Venta</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleGeneratePDF}
+              disabled={isGeneratingPDF}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+              title="Descargar Ficha de Venta en PDF"
+            >
+              <FileDown size={14} />
+              {isGeneratingPDF ? 'Generando PDF...' : 'Descargar PDF'}
+            </button>
+
+            <button
+              onClick={handleShareWhatsApp}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded flex items-center gap-1.5 transition cursor-pointer"
+              title="Enviar resumen por WhatsApp"
+            >
+              <MessageCircle size={14} />
+              Enviar WhatsApp
+            </button>
+
+            <button
+              onClick={handlePrint}
+              className="px-4 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white font-bold text-xs rounded flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+            >
+              <Printer size={14} />
+              Imprimir (1/2 Hoja A4)
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-1.5 text-app-text/60 hover:text-app-text hover:bg-app-bg rounded transition cursor-pointer"
+              title="Cerrar"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={handleGeneratePDF}
-            disabled={isGeneratingPDF}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
-            title="Descargar Ficha de Venta en PDF"
-          >
-            <FileDown size={14} />
-            {isGeneratingPDF ? 'Generando PDF...' : 'Descargar PDF'}
-          </button>
-
-          <button
-            onClick={handleShareWhatsApp}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded flex items-center gap-1.5 transition cursor-pointer"
-            title="Enviar resumen por WhatsApp"
-          >
-            <MessageCircle size={14} />
-            Enviar WhatsApp
-          </button>
-
-          <button
-            onClick={handlePrint}
-            className="px-4 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white font-bold text-xs rounded flex items-center gap-1.5 transition shadow-xs cursor-pointer"
-          >
-            <Printer size={14} />
-            Imprimir (1/2 Hoja A4)
-          </button>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 text-app-text/60 hover:text-app-text hover:bg-app-bg rounded transition cursor-pointer"
-            title="Cerrar"
-          >
-            <X size={18} />
-          </button>
-        </div>
+        {pdfError && (
+          <AlertBanner
+            type="error"
+            message={pdfError}
+            onClose={() => setPdfError(null)}
+          />
+        )}
       </div>
 
       {/* Print Document Container - Designed for A4 page half */}

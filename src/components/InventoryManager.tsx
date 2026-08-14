@@ -123,7 +123,7 @@ export default function InventoryManager({
   // Export Inventory list to Excel (XLSX with logo and formatting)
   const handleExportExcel = async () => {
     if (filteredInventory.length === 0) {
-      alert('No hay registros filtrados para exportar');
+      setError('No hay registros filtrados para exportar');
       return;
     }
     await exportInventoryToExcel(filteredInventory, articles, providers);

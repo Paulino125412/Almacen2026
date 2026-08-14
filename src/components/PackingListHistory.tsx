@@ -124,7 +124,7 @@ _Generado automáticamente desde Sistema TexFlow Almacén_`;
   // 1. Export summary of filtered Packing Lists to Excel
   const handleExportSummary = async () => {
     if (filteredLists.length === 0) {
-      alert('No hay despachos filtrados para exportar');
+      setDeleteError('No hay despachos filtrados para exportar');
       return;
     }
     await exportPackingListSummaryToExcel(filteredLists, clients, sellers);
@@ -133,7 +133,7 @@ _Generado automáticamente desde Sistema TexFlow Almacén_`;
   // 2. Export deep/flattened details of all filtered roll items to Excel
   const handleExportFullDetails = async () => {
     if (filteredLists.length === 0) {
-      alert('No hay despachos filtrados para exportar');
+      setDeleteError('No hay despachos filtrados para exportar');
       return;
     }
     await exportPackingListFullDetailsToExcel(filteredLists, articles, clients, sellers);

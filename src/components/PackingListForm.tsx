@@ -565,7 +565,7 @@ export default function PackingListForm({
 
   const handleRemoveArticleGroup = (groupId: string) => {
     if (articleGroups.length <= 1) {
-      alert('Debe incluir al menos un artículo en el Packing List.');
+      setError('Debe incluir al menos un artículo en el Packing List.');
       return;
     }
     setArticleGroups(prev => prev.filter(g => g.id !== groupId));
@@ -759,7 +759,7 @@ export default function PackingListForm({
     }
 
     if (parsedRows.length === 0) {
-      alert("No se encontraron metrajes válidos. Ingrese un número o pegue una tabla desde Excel.");
+      setError("No se encontraron metrajes válidos. Ingrese un número o pegue una tabla desde Excel.");
       return;
     }
 

@@ -559,12 +559,13 @@ app.post("/api/generate-pdf", async (req, res) => {
 </body>
 </html>`;
 
-    await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+    await page.setContent(fullHtml, { waitUntil: 'networkidle0', timeout: 20000 });
     await page.emulateMediaType('print');
 
     const pdfBuffer = await page.pdf({
       printBackground: true,
-      preferCSSPageSize: true
+      preferCSSPageSize: true,
+      timeout: 20000
     });
 
     res.set({
@@ -576,8 +577,11 @@ app.post("/api/generate-pdf", async (req, res) => {
     return res.send(Buffer.from(pdfBuffer));
   } catch (error: any) {
     console.error("Puppeteer PDF generation error:", error);
-    return res.status(500).json({
-      error: "Error al generar el PDF en el servidor",
+    const isTimeout = error?.name === 'TimeoutError' || /timeout/i.test(error?.message || '');
+    return res.status(isTimeout ? 504 : 500).json({
+      error: isTimeout
+        ? "La generación del PDF tardó demasiado y se canceló. Intente nuevamente."
+        : "Error al generar el PDF en el servidor",
       details: error?.message || String(error)
     });
   } finally {
