@@ -1,11 +1,12 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import puppeteer, { Browser } from "puppeteer";
 
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // In-memory cache for fast repeat lookups
 const lookupCache = new Map<string, { data: any; timestamp: number }>();
@@ -488,6 +489,92 @@ app.get("/api/sunat/:number", async (req, res) => {
     success: false,
     error: 'El número ingresado debe ser RUC (11 dígitos) o DNI (8 dígitos).'
   });
+});
+
+// Shared Puppeteer Browser instance for high performance PDF generation
+let browserInstance: Browser | null = null;
+
+async function getBrowser(): Promise<Browser> {
+  if (browserInstance && browserInstance.connected) {
+    return browserInstance;
+  }
+  try {
+    browserInstance = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--font-render-hinting=none'
+      ]
+    });
+    browserInstance.on('disconnected', () => {
+      browserInstance = null;
+    });
+    return browserInstance;
+  } catch (err) {
+    browserInstance = null;
+    throw err;
+  }
+}
+
+// PDF Generation Endpoint via Server-side Headless Puppeteer
+app.post("/api/generate-pdf", async (req, res) => {
+  const { html, css } = req.body;
+  if (!html) {
+    return res.status(400).json({ error: "Missing HTML content" });
+  }
+
+  let page = null;
+  try {
+    const browser = await getBrowser();
+    page = await browser.newPage();
+
+    const fullHtml = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    ${css || ''}
+  </style>
+</head>
+<body>
+  ${html}
+</body>
+</html>`;
+
+    await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+    await page.emulateMediaType('print');
+
+    const pdfBuffer = await page.pdf({
+      printBackground: true,
+      preferCSSPageSize: true
+    });
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Length': pdfBuffer.length.toString(),
+      'Content-Disposition': 'attachment; filename="document.pdf"'
+    });
+
+    return res.send(Buffer.from(pdfBuffer));
+  } catch (error: any) {
+    console.error("Puppeteer PDF generation error:", error);
+    return res.status(500).json({
+      error: "Error al generar el PDF en el servidor",
+      details: error?.message || String(error)
+    });
+  } finally {
+    if (page) {
+      try {
+        await page.close();
+      } catch (e) {
+        console.warn("Error closing page:", e);
+      }
+    }
+  }
 });
 
 // Vite middleware for development mode

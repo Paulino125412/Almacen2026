@@ -10,55 +10,74 @@ interface PrintSalesOrderProps {
   onClose: () => void;
 }
 
-function convertOklchToRgb(cssText: string): string {
-  if (!cssText || !cssText.includes('oklch')) return cssText;
-
-  return cssText.replace(/oklch\(\s*([\w.%]+)\s+([\w.]+)\s+([\w.]+)(?:\s*\/\s*([\w.%]+))?\s*\)/gi, (match, lStr, cStr, hStr, aStr) => {
-    const parseVal = (str: string | undefined, defaultVal: number) => {
-      if (!str || str === 'none') return defaultVal;
-      if (str.endsWith('%')) return parseFloat(str) / 100;
-      const num = parseFloat(str);
-      return isNaN(num) ? defaultVal : num;
-    };
-
-    const l = parseVal(lStr, 0);
-    const c = parseVal(cStr, 0);
-    const h = parseVal(hStr, 0);
-    const a = aStr !== undefined ? parseVal(aStr, 1) : 1;
-
-    // Convert OKLCH to OKLAB
-    const hRad = (h * Math.PI) / 180;
-    const aLab = c * Math.cos(hRad);
-    const bLab = c * Math.sin(hRad);
-
-    // Convert OKLAB to Linear RGB
-    const l_ = l + 0.3963377774 * aLab + 0.2158037573 * bLab;
-    const m_ = l - 0.1055613458 * aLab - 0.0638541728 * bLab;
-    const s_ = l - 0.0894841775 * aLab - 1.2914855480 * bLab;
-
-    const lRgb = l_ * l_ * l_;
-    const mRgb = m_ * m_ * m_;
-    const sRgb = s_ * s_ * s_;
-
-    const rLin = +4.0767416621 * lRgb - 3.3077115913 * mRgb + 0.2309699292 * sRgb;
-    const gLin = -1.2684380046 * lRgb + 2.6097574011 * mRgb - 0.3413193965 * sRgb;
-    const bLin = -0.0041960863 * lRgb - 0.7034186147 * mRgb + 1.7076147010 * sRgb;
-
-    const toSrgb = (x: number) => {
-      x = Math.max(0, Math.min(1, x));
-      return x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
-    };
-
-    const r = Math.round(toSrgb(rLin) * 255);
-    const g = Math.round(toSrgb(gLin) * 255);
-    const b = Math.round(toSrgb(bLin) * 255);
-
-    if (a < 1) {
-      return `rgba(${r}, ${g}, ${b}, ${Number(a.toFixed(3))})`;
+export const SALES_FICHA_PRINT_CSS = `
+  .sales-ficha-print-sheet {
+    font-family: Arial, Helvetica, sans-serif !important;
+    color: #000000 !important;
+    background-color: #ffffff !important;
+    line-height: 1.35 !important;
+  }
+  .sales-ficha-print-sheet * {
+    box-sizing: border-box !important;
+  }
+  .sales-ficha-print-sheet td,
+  .sales-ficha-print-sheet th {
+    line-height: 1.35 !important;
+  }
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 5mm;
     }
-    return `rgb(${r}, ${g}, ${b})`;
-  });
-}
+    html, body {
+      background: white !important;
+      background-color: white !important;
+      color: black !important;
+      height: 100% !important;
+      max-height: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    #print-section {
+      background: white !important;
+      background-color: white !important;
+      background-image: none !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100% !important;
+      height: auto !important;
+      box-shadow: none !important;
+      border: none !important;
+    }
+    #print-section > div {
+      background: white !important;
+      background-color: white !important;
+      box-shadow: none !important;
+      border: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+    .sales-ficha-print-sheet {
+      max-height: 138mm !important;
+      height: auto !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+      box-sizing: border-box !important;
+      background: white !important;
+      background-color: white !important;
+    }
+  }
+`;
 
 export default function PrintSalesOrder({
   order,
@@ -148,110 +167,41 @@ export default function PrintSalesOrder({
 
     try {
       setIsGeneratingPDF(true);
-      if (document.fonts) {
-        await document.fonts.ready;
-      }
-
-      const html2pdfModule = await import('html2pdf.js');
-      const html2pdf = (html2pdfModule.default || html2pdfModule) as any;
 
       const clientNameClean = (order.clientName || 'Cliente').replace(/[^a-zA-Z0-9_-]/g, '_');
       const filename = `Ficha_Venta_${clientNameClean}_${order.orderNo || ''}.pdf`;
 
-      const opt = {
-        margin: 5,
-        filename: filename,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: {
-          scale: 1,
-          useCORS: true,
-          logging: false,
-          foreignObjectRendering: true,
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: 1024,
-          onclone: (clonedDoc: Document) => {
-            // Convert oklch() color functions in style tags to exact rgb/rgba
-            const styleTags = Array.from(clonedDoc.querySelectorAll('style'));
-            styleTags.forEach((style) => {
-              if (style.textContent && style.textContent.includes('oklch')) {
-                style.textContent = convertOklchToRgb(style.textContent);
-              }
-            });
+      // Collect all active style tags (Tailwind CSS, fonts) plus the print rules
+      const styleSheets = Array.from(document.querySelectorAll('style'))
+        .map(el => el.textContent || '')
+        .join('\n');
+      const fullCss = `${styleSheets}\n${SALES_FICHA_PRINT_CSS}`;
 
-            // Convert inline styles
-            const elements = Array.from(clonedDoc.querySelectorAll('*'));
-            elements.forEach((el) => {
-              const styleAttr = el.getAttribute('style');
-              if (styleAttr && styleAttr.includes('oklch')) {
-                el.setAttribute('style', convertOklchToRgb(styleAttr));
-              }
-            });
-
-            // Inject custom CSS into clonedDoc to guarantee a strict mirror of @media print
-            const pdfStyle = clonedDoc.createElement('style');
-            pdfStyle.textContent = `
-              #print-section {
-                background: #ffffff !important;
-                background-color: #ffffff !important;
-                background-image: none !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                box-shadow: none !important;
-                border: none !important;
-              }
-              #print-section > div {
-                background: #ffffff !important;
-                background-color: #ffffff !important;
-                box-shadow: none !important;
-                border: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-              }
-              .sales-ficha-print-sheet {
-                width: 200mm !important;
-                max-width: 200mm !important;
-                min-width: 200mm !important;
-                height: auto !important;
-                margin: 0 auto !important;
-                background-color: #ffffff !important;
-                color: #000000 !important;
-                font-family: Arial, Helvetica, sans-serif !important;
-                box-sizing: border-box !important;
-                box-shadow: none !important;
-                border: none !important;
-              }
-              .sales-ficha-print-sheet * {
-                box-sizing: border-box !important;
-                color: #000000 !important;
-              }
-              .sales-ficha-print-sheet .leading-tight {
-                line-height: 1.35 !important;
-              }
-              .sales-ficha-print-sheet br {
-                display: block !important;
-                content: "" !important;
-                margin-top: 1px !important;
-              }
-              .sales-ficha-print-sheet .flex.justify-between.items-center > div {
-                white-space: nowrap !important;
-              }
-              .sales-ficha-print-sheet .flex.justify-between.items-center {
-                justify-content: flex-start !important;
-              }
-              .sales-ficha-print-sheet .flex.justify-between.items-center > div:last-child {
-                margin-left: auto !important;
-              }
-            `;
-            clonedDoc.head.appendChild(pdfStyle);
-          }
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
-      };
+        body: JSON.stringify({
+          html: element.outerHTML,
+          css: fullCss,
+        }),
+      });
 
-      // html2pdf worker
-      const worker = html2pdf().set(opt).from(element);
-      const pdfBlob = await worker.output('blob');
+      if (!response.ok) {
+        let errorMsg = 'No se pudo generar el PDF en el servidor.';
+        try {
+          const errData = await response.json();
+          if (errData.details || errData.error) {
+            errorMsg = errData.details || errData.error;
+          }
+        } catch {
+          // ignore parsing error
+        }
+        throw new Error(errorMsg);
+      }
+
+      const pdfBlob = await response.blob();
 
       // Download file to user device
       const blobUrl = URL.createObjectURL(pdfBlob);
@@ -278,9 +228,9 @@ export default function PrintSalesOrder({
           // User cancelled share or non-critical error
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error al generar el PDF:', err);
-      alert('No se pudo generar el PDF. Por favor reintente.');
+      alert(`No se pudo generar el PDF: ${err?.message || 'Por favor reintente.'}`);
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -616,74 +566,7 @@ export default function PrintSalesOrder({
       </div>
 
       {/* Print Specific CSS for 1/2 A4 Sheet */}
-      <style>{`
-        .sales-ficha-print-sheet {
-          font-family: Arial, Helvetica, sans-serif !important;
-          color: #000000 !important;
-          background-color: #ffffff !important;
-          line-height: 1.35 !important;
-        }
-        .sales-ficha-print-sheet * {
-          box-sizing: border-box !important;
-        }
-        .sales-ficha-print-sheet td,
-        .sales-ficha-print-sheet th {
-          line-height: 1.35 !important;
-        }
-        @media print {
-          @page {
-            size: A4 portrait;
-            margin: 5mm;
-          }
-          html, body {
-            background: white !important;
-            background-color: white !important;
-            color: black !important;
-            height: 100% !important;
-            max-height: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          #print-section {
-            background: white !important;
-            background-color: white !important;
-            background-image: none !important;
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            box-shadow: none !important;
-            border: none !important;
-          }
-          #print-section > div {
-            background: white !important;
-            background-color: white !important;
-            box-shadow: none !important;
-            border: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-          .sales-ficha-print-sheet {
-            max-height: 138mm !important;
-            height: auto !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            page-break-after: avoid !important;
-            break-after: avoid !important;
-            box-sizing: border-box !important;
-            background: white !important;
-            background-color: white !important;
-          }
-        }
-      `}</style>
+      <style>{SALES_FICHA_PRINT_CSS}</style>
     </div>
   );
 }
