@@ -170,7 +170,6 @@ export default function PrintSalesOrder({
           scrollX: 0,
           scrollY: 0,
           windowWidth: 1024,
-          width: 756,
           onclone: (clonedDoc: Document) => {
             // Convert oklch() color functions in style tags to exact rgb/rgba
             const styleTags = Array.from(clonedDoc.querySelectorAll('style'));
