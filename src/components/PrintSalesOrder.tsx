@@ -171,11 +171,21 @@ export default function PrintSalesOrder({
       const clientNameClean = (order.clientName || 'Cliente').replace(/[^a-zA-Z0-9_-]/g, '_');
       const filename = `Ficha_Venta_${clientNameClean}_${order.orderNo || ''}.pdf`;
 
-      // Collect all active style tags (Tailwind CSS, fonts) plus the print rules
-      const styleSheets = Array.from(document.querySelectorAll('style'))
-        .map(el => el.textContent || '')
-        .join('\n');
-      const fullCss = `${styleSheets}\n${SALES_FICHA_PRINT_CSS}`;
+      // Collect all active style sheets (both <style> and <link> like Tailwind CSS) plus the print rules
+      const collectAllCss = (): string => {
+        let css = '';
+        for (const sheet of Array.from(document.styleSheets)) {
+          try {
+            const rules = sheet.cssRules;
+            css += Array.from(rules).map(r => r.cssText).join('\n') + '\n';
+          } catch {
+            // Hoja de estilo externa bloqueada por CORS (poco probable aquí,
+            // pero se ignora en vez de romper la generación del PDF)
+          }
+        }
+        return css;
+      };
+      const fullCss = `${collectAllCss()}\n${SALES_FICHA_PRINT_CSS}`;
 
       const response = await fetch('/api/generate-pdf', {
         method: 'POST',

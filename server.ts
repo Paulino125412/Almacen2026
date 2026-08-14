@@ -522,6 +522,8 @@ async function getBrowser(): Promise<Browser> {
 // PDF Generation Endpoint via Server-side Headless Puppeteer
 app.post("/api/generate-pdf", async (req, res) => {
   const { html, css } = req.body;
+  console.log('[PDF DEBUG] html length:', html?.length || 0, 'css length:', css?.length || 0);
+
   if (!html) {
     return res.status(400).json({ error: "Missing HTML content" });
   }
@@ -530,6 +532,7 @@ app.post("/api/generate-pdf", async (req, res) => {
   try {
     const browser = await getBrowser();
     page = await browser.newPage();
+    await page.setViewport({ width: 900, height: 1400 });
 
     const fullHtml = `<!DOCTYPE html>
 <html lang="es">
