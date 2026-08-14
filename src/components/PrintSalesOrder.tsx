@@ -41,6 +41,9 @@ export const SALES_FICHA_PRINT_CSS = `
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
+    #print-section, #print-section *, .sales-ficha-print-sheet, .sales-ficha-print-sheet * {
+      visibility: visible !important;
+    }
     #print-section {
       background: white !important;
       background-color: white !important;
