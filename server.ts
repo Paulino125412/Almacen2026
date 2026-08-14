@@ -524,8 +524,11 @@ app.post("/api/generate-pdf", async (req, res) => {
   const { html, css } = req.body;
   console.log('[PDF DEBUG] html length:', html?.length || 0, 'css length:', css?.length || 0);
 
-  if (!html) {
-    return res.status(400).json({ error: "Missing HTML content" });
+  if (!html || typeof html !== 'string' || html.length > 500_000) {
+    return res.status(400).json({ error: 'HTML inválido o demasiado grande' });
+  }
+  if (css && (typeof css !== 'string' || css.length > 500_000)) {
+    return res.status(400).json({ error: 'CSS inválido o demasiado grande' });
   }
 
   let page = null;
