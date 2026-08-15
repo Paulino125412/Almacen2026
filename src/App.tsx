@@ -389,6 +389,7 @@ export default function App() {
             articles={articles}
             inventory={inventory}
             packingLists={packingLists}
+            inventoryHasMore={inventoryHasMore}
             onRefresh={handleForceRefresh}
             onPackingListCreated={(pl) => {
               setSelectedPrintList(pl);

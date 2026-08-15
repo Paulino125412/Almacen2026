@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { RollItem, Provider, Article } from '../types';
-import { db, addDoc, updateDoc, deleteDoc } from '../firebase';
+import { db, addDoc, updateDoc, deleteDoc, fetchAllInventoryDocs, fetchAllSoldRolls } from '../firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
 import InventoryExcelPasteParser from './inventory/InventoryExcelPasteParser';
 import { Search, Filter, Plus, FileSpreadsheet, Info, Wrench, Trash2, ShieldAlert, ArrowDownUp, X, CheckCircle, RefreshCw, Package } from 'lucide-react';
@@ -49,6 +49,64 @@ export default function InventoryManager({
   const [filterStatus, setFilterStatus] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Full inventory search state for searching beyond paginated slice
+  const [fullInventorySearchResults, setFullInventorySearchResults] = useState<RollItem[] | null>(null);
+  const [isFetchingFull, setIsFetchingFull] = useState(false);
+
+  // Check if any filter or search criteria is active
+  const isFilterActive = useMemo(() => {
+    return Boolean(
+      searchTerm.trim() !== '' ||
+      filterProviderId !== 'all' ||
+      filterArticleId !== 'all' ||
+      filterStatus !== 'all' ||
+      startDate !== '' ||
+      endDate !== ''
+    );
+  }, [searchTerm, filterProviderId, filterArticleId, filterStatus, startDate, endDate]);
+
+  // When search or filters become active and more inventory exists in the DB, query Firestore for full collection
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (isFilterActive) {
+      if (isHasMore && fullInventorySearchResults === null && !isFetchingFull) {
+        setIsFetchingFull(true);
+        fetchAllInventoryDocs()
+          .then(allDocs => {
+            if (!isCancelled) {
+              setFullInventorySearchResults(allDocs);
+            }
+          })
+          .catch(err => {
+            console.error("Error fetching full inventory search results:", err);
+          })
+          .finally(() => {
+            if (!isCancelled) {
+              setIsFetchingFull(false);
+            }
+          });
+      }
+    } else {
+      // Revert to normal paginated behavior when filters and search are cleared
+      if (fullInventorySearchResults !== null) {
+        setFullInventorySearchResults(null);
+      }
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isFilterActive, isHasMore, fullInventorySearchResults, isFetchingFull]);
+
+  // Active dataset for filtering and statistics
+  const effectiveInventory = useMemo(() => {
+    if (isFilterActive && fullInventorySearchResults) {
+      return fullInventorySearchResults;
+    }
+    return inventory;
+  }, [isFilterActive, fullInventorySearchResults, inventory]);
 
   const toast = useToast();
   // Form states for creating a new roll
@@ -105,7 +163,7 @@ export default function InventoryManager({
 
   // Filtered inventory
   const filteredInventory = useMemo(() => {
-    return inventory.filter(item => {
+    return effectiveInventory.filter(item => {
       // 1. Text Search (Matches roll number, article name, lot, tono, partida)
       const article = articles.find(a => a.id === item.articleId);
       const articleName = article?.name || '';
@@ -133,12 +191,12 @@ export default function InventoryManager({
 
       return matchesSearch && matchesProvider && matchesArticle && matchesStatus && matchesDate;
     });
-  }, [inventory, searchTerm, filterProviderId, filterArticleId, filterStatus, startDate, endDate, articles, providers]);
+  }, [effectiveInventory, searchTerm, filterProviderId, filterArticleId, filterStatus, startDate, endDate, articles, providers]);
 
   // Exhausted/Sold Rolls memo
   const soldRolls = useMemo(() => {
-    return inventory.filter(item => item.currentMeters === 0);
-  }, [inventory]);
+    return effectiveInventory.filter(item => item.currentMeters === 0 || item.status === 'sold');
+  }, [effectiveInventory]);
 
   // Export Inventory list to Excel (XLSX with logo and formatting)
   const handleExportExcel = async () => {
@@ -391,6 +449,21 @@ export default function InventoryManager({
     }
   };
 
+  const [allDBSoldRolls, setAllDBSoldRolls] = useState<RollItem[] | null>(null);
+  const [isLoadingSoldRolls, setIsLoadingSoldRolls] = useState(false);
+
+  useEffect(() => {
+    if (isBulkDeleteOpen && isHasMore && allDBSoldRolls === null && !isLoadingSoldRolls) {
+      setIsLoadingSoldRolls(true);
+      fetchAllSoldRolls()
+        .then(rolls => setAllDBSoldRolls(rolls))
+        .catch(err => console.error("Error fetching all sold rolls:", err))
+        .finally(() => setIsLoadingSoldRolls(false));
+    }
+  }, [isBulkDeleteOpen, isHasMore, allDBSoldRolls, isLoadingSoldRolls]);
+
+  const targetSoldRolls = allDBSoldRolls || soldRolls;
+
   const handleConfirmBulkDelete = async () => {
     setIsBulkDeleting(true);
     setBulkDeleteError(null);
@@ -401,7 +474,10 @@ export default function InventoryManager({
     let failureCount = 0;
 
     try {
-      for (const roll of soldRolls) {
+      // Fetch full list of all sold rolls in the database to ensure complete cleanup
+      const rollsToDelete = isHasMore ? await fetchAllSoldRolls() : targetSoldRolls;
+
+      for (const roll of rollsToDelete) {
         try {
           await deleteDoc(doc(db, 'inventory', roll.id));
           successCount++;
@@ -412,9 +488,13 @@ export default function InventoryManager({
       }
 
       await onRefresh();
+      if (fullInventorySearchResults) {
+        setFullInventorySearchResults(null);
+      }
+      setAllDBSoldRolls(null);
 
       if (failureCount === 0) {
-        setBulkDeleteSuccess(`Se eliminaron correctamente los ${successCount} rollos agotados de manera permanente.`);
+        setBulkDeleteSuccess(`Se eliminaron correctamente los ${successCount} rollos agotados de manera permanente en todo el inventario.`);
         setTimeout(() => {
           setIsBulkDeleteOpen(false);
           setBulkDeleteSuccess(null);
@@ -792,10 +872,24 @@ export default function InventoryManager({
 
       {/* Advanced filters controls */}
       <div className="bg-app-surface border border-app-border rounded-lg p-5 shadow-xs">
-        <h4 className="text-xs font-bold text-app-text/50 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-          <Filter size={12} className="text-app-text/50" />
-          Filtros de Búsqueda Avanzados
-        </h4>
+        <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
+          <h4 className="text-xs font-bold text-app-text/50 uppercase tracking-wider flex items-center gap-1.5">
+            <Filter size={12} className="text-app-text/50" />
+            Filtros de Búsqueda Avanzados
+          </h4>
+          {isFetchingFull && (
+            <div className="flex items-center gap-2 px-2.5 py-1 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 rounded text-xs font-semibold animate-pulse">
+              <RefreshCw size={12} className="animate-spin text-app-primary" />
+              <span>Buscando en todo el inventario...</span>
+            </div>
+          )}
+          {!isFetchingFull && isFilterActive && fullInventorySearchResults && (
+            <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 rounded text-[10px] font-bold uppercase tracking-wider">
+              <CheckCircle size={11} />
+              <span>Búsqueda sobre todo el inventario</span>
+            </div>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
           <div className="md:col-span-2">
             <label className="block text-[11px] font-bold text-app-text/60 mb-1.5 uppercase tracking-wider">Búsqueda rápida (Criterios)</label>
@@ -1100,8 +1194,8 @@ export default function InventoryManager({
           </table>
         </div>
 
-        {/* Load More Button */}
-        {isHasMore && (
+        {/* Load More Button - only displayed when not searching/filtering the full collection */}
+        {!isFilterActive && isHasMore && (
           <div className="p-4 border-t border-app-border bg-app-surface/50 flex justify-center items-center">
             <button
               type="button"
@@ -1258,24 +1352,33 @@ export default function InventoryManager({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-xs font-medium leading-relaxed text-app-text/80">
-                    ¿Está totalmente seguro de que desea eliminar permanentemente los <strong className="text-app-text bg-app-bg px-1.5 py-0.5 rounded font-bold">{soldRolls.length}</strong> rollos agotados (0 metros) del inventario?
-                  </p>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-app-text/50 uppercase tracking-wider block">Lista de rollos a eliminar ({soldRolls.length}):</label>
-                    <div className="max-h-40 overflow-y-auto border border-app-border bg-app-bg/50 rounded p-2 text-[11px] divide-y divide-app-border/40 font-mono">
-                      {soldRolls.map(item => {
-                        const article = articles.find(a => a.id === item.articleId);
-                        return (
-                          <div key={item.id} className="py-1 flex justify-between items-center">
-                            <span className="font-bold text-app-primary">{item.rollNumber}</span>
-                            <span className="text-app-text/60 max-w-[200px] truncate">{article?.name || 'Artículo desconocido'}</span>
-                          </div>
-                        );
-                      })}
+                  {isLoadingSoldRolls ? (
+                    <div className="p-4 flex items-center justify-center gap-2 text-xs text-app-text/70 bg-app-bg rounded">
+                      <RefreshCw size={13} className="animate-spin text-app-primary" />
+                      <span>Cargando lista de rollos agotados en todo el inventario...</span>
                     </div>
-                  </div>
+                  ) : (
+                    <>
+                      <p className="text-xs font-medium leading-relaxed text-app-text/80">
+                        ¿Está totalmente seguro de que desea eliminar permanentemente los <strong className="text-app-text bg-app-bg px-1.5 py-0.5 rounded font-bold">{targetSoldRolls.length}</strong> rollos agotados (0 metros) del inventario?
+                      </p>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-app-text/50 uppercase tracking-wider block">Lista de rollos a eliminar ({targetSoldRolls.length}):</label>
+                        <div className="max-h-40 overflow-y-auto border border-app-border bg-app-bg/50 rounded p-2 text-[11px] divide-y divide-app-border/40 font-mono">
+                          {targetSoldRolls.map(item => {
+                            const article = articles.find(a => a.id === item.articleId);
+                            return (
+                              <div key={item.id} className="py-1 flex justify-between items-center">
+                                <span className="font-bold text-app-primary">{item.rollNumber}</span>
+                                <span className="text-app-text/60 max-w-[200px] truncate">{article?.name || 'Artículo desconocido'}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
                   
                   <AlertBanner
                     type="warning"

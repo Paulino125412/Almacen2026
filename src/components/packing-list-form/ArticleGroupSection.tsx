@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, QrCode } from 'lucide-react';
 import { Article, Provider, RollItem, PackingList } from '../../types';
+import { findRollInInventory, fetchAllPackingLists } from '../../firebase';
 import { FormArticleGroup, FormRollEntry } from './types';
 import ExcelPasteParser from './ExcelPasteParser';
 import SearchableCombobox from '../SearchableCombobox';
@@ -485,11 +486,34 @@ export default function ArticleGroupSection({
       <BarcodeScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        onScanResult={(scan) => {
-          const foundRoll = availableRolls.find(
+        onScanResult={async (scan) => {
+          let foundRoll = availableRolls.find(
             r => r.articleId === group.articleId &&
                  r.rollNumber.trim().toLowerCase() === scan.rollNumber.trim().toLowerCase()
           );
+
+          let depletedRoll = allInventory.find(
+            r => r.articleId === group.articleId &&
+                 r.rollNumber.trim().toLowerCase() === scan.rollNumber.trim().toLowerCase() &&
+                 r.currentMeters === 0
+          );
+
+          // If not in currently loaded paginated slice, search entire Firestore collection
+          if (!foundRoll && !depletedRoll) {
+            try {
+              const dbRoll = await findRollInInventory(scan.rollNumber, group.articleId || undefined);
+              if (dbRoll) {
+                if (dbRoll.currentMeters > 0) {
+                  foundRoll = dbRoll;
+                } else {
+                  depletedRoll = dbRoll;
+                }
+              }
+            } catch (err) {
+              console.warn("Error searching roll in full database:", err);
+            }
+          }
+
           if (foundRoll) {
             const emptyRoll = group.rolls.find(r => !r.rollId);
             if (emptyRoll) {
@@ -507,25 +531,27 @@ export default function ArticleGroupSection({
                 weight: foundRoll.weight
               });
             }
-          } else {
-            const depletedRoll = allInventory.find(
-              r => r.articleId === group.articleId &&
-                   r.rollNumber.trim().toLowerCase() === scan.rollNumber.trim().toLowerCase()
+          } else if (depletedRoll) {
+            let usedPL = packingLists.find(pl =>
+              pl.items.some(item => item.rollId === depletedRoll!.id)
             );
-            if (depletedRoll) {
-              const usedPL = packingLists.find(pl =>
-                pl.items.some(item => item.rollId === depletedRoll.id)
-              );
-              const packingListNo = usedPL ? usedPL.packingListNo : 'desconocido';
-              const confirmed = window.confirm(
-                `Este rollo (${depletedRoll.rollNumber}) ya fue registrado como agotado. Se usó en el Packing List N° ${packingListNo}. ¿Deseas continuar de todas formas y cargarlo como entrada manual?`
-              );
-              if (confirmed) {
-                onAddScannedRoll(group.id, scan);
+            if (!usedPL) {
+              try {
+                const allPLs = await fetchAllPackingLists();
+                usedPL = allPLs.find(pl => pl.items.some(item => item.rollId === depletedRoll!.id));
+              } catch (err) {
+                console.warn("Error checking packing lists:", err);
               }
-            } else {
+            }
+            const packingListNo = usedPL ? usedPL.packingListNo : 'desconocido';
+            const confirmed = window.confirm(
+              `Este rollo (${depletedRoll.rollNumber}) ya fue registrado como agotado (0 metros) en el almacén. Se usó en el Packing List N° ${packingListNo}. ¿Deseas continuar de todas formas y cargarlo como entrada manual?`
+            );
+            if (confirmed) {
               onAddScannedRoll(group.id, scan);
             }
+          } else {
+            onAddScannedRoll(group.id, scan);
           }
         }}
       />

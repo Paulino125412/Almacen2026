@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Client, Seller, Provider, Article, RollItem, PackingList, PackingListItem } from '../types';
-import { db, addDoc, updateDoc, runTransaction } from '../firebase';
+import { db, addDoc, updateDoc, runTransaction, fetchAllInventoryDocs, findRollInInventory, fetchAllPackingLists } from '../firebase';
 import { collection, doc } from 'firebase/firestore';
 import { Plus, Trash2, Calendar, User, ShoppingBag, CheckCircle2, ChevronRight, Hash, Ruler, X, FileText, Layers, Truck } from 'lucide-react';
 import SearchableCombobox from './SearchableCombobox';
@@ -19,6 +19,7 @@ interface PackingListFormProps {
   articles: Article[];
   inventory: RollItem[];
   packingLists: PackingList[];
+  inventoryHasMore?: boolean;
   onRefresh: () => Promise<void>;
   onPackingListCreated: (pl: PackingList) => void;
   currentOperator: string;
@@ -67,6 +68,7 @@ export default function PackingListForm({
   articles,
   inventory,
   packingLists,
+  inventoryHasMore = false,
   onRefresh,
   onPackingListCreated,
   currentOperator,
@@ -423,10 +425,25 @@ export default function PackingListForm({
     }
   }, [editingPackingList, isDuplicate, packingLists, providers, inventory, articles, clients, sellers]);
 
-  // Filter available inventory rolls
+  // Full inventory fetching for all available rolls beyond paginated slice
+  const [fullInventoryDocs, setFullInventoryDocs] = useState<RollItem[] | null>(null);
+
+  useEffect(() => {
+    if (inventoryHasMore && fullInventoryDocs === null) {
+      fetchAllInventoryDocs()
+        .then(docs => setFullInventoryDocs(docs))
+        .catch(err => console.warn("Could not fetch full inventory in PackingListForm:", err));
+    }
+  }, [inventoryHasMore, fullInventoryDocs]);
+
+  const effectiveFullInventory = useMemo(() => {
+    return fullInventoryDocs || inventory;
+  }, [fullInventoryDocs, inventory]);
+
+  // Filter available inventory rolls across full dataset
   const availableRolls = useMemo(() => {
-    return inventory.filter(r => r.currentMeters > 0);
-  }, [inventory]);
+    return effectiveFullInventory.filter(r => r.currentMeters > 0);
+  }, [effectiveFullInventory]);
 
   const handleClientChange = (newClientId: string) => {
     setClientId(newClientId);
@@ -1114,6 +1131,59 @@ export default function PackingListForm({
       }
     }
 
+    // Deep check across entire inventory for exhausted / already used rolls
+    for (let gIdx = 0; gIdx < articleGroups.length; gIdx++) {
+      const g = articleGroups[gIdx];
+      for (let rIdx = 0; rIdx < g.rolls.length; rIdx++) {
+        const r = g.rolls[rIdx];
+        if (r.rollNumber && r.rollNumber.trim()) {
+          let matchedRoll = effectiveFullInventory.find(
+            invRoll => invRoll.articleId === g.articleId &&
+                       invRoll.rollNumber.trim().toLowerCase() === r.rollNumber.trim().toLowerCase()
+          );
+
+          if (!matchedRoll) {
+            try {
+              const dbRoll = await findRollInInventory(r.rollNumber.trim(), g.articleId || undefined);
+              if (dbRoll) {
+                matchedRoll = dbRoll;
+              }
+            } catch (err) {
+              console.warn("Error looking up roll in DB:", err);
+            }
+          }
+
+          if (matchedRoll && matchedRoll.currentMeters === 0 && (!editingPackingList || !editingPackingList.items.some(item => item.rollId === matchedRoll!.id))) {
+            let usedPL = packingLists.find(pl => pl.items.some(item => item.rollId === matchedRoll!.id));
+            if (!usedPL) {
+              try {
+                const allPLs = await fetchAllPackingLists();
+                usedPL = allPLs.find(pl => pl.items.some(item => item.rollId === matchedRoll!.id));
+              } catch (err) {
+                console.warn("Error fetching all packing lists for roll check:", err);
+              }
+            }
+            const plNo = usedPL ? usedPL.packingListNo : 'desconocido';
+            
+            const confirmed = window.confirm(
+              `ADVERTENCIA: El rollo "${r.rollNumber}" ya figura como AGOTADO (0 metros) en el inventario. Se utilizó previamente en el Packing List N° ${plNo}.\n\n¿Desea continuar de todas formas con este despacho?`
+            );
+            if (!confirmed) {
+              const diag = {
+                title: 'Rollo Ya Agotado en Almacén',
+                message: `El rollo "${r.rollNumber}" ya fue utilizado y agotado en el Packing List N° ${plNo}.`,
+                rootCause: 'El identificador de rollo ingresado corresponde a un rollo con stock 0 metros.',
+                solution: 'Verifique si el número es correcto o elija otro rollo disponible en almacén.'
+              };
+              setError(diag);
+              toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
+              return;
+            }
+          }
+        }
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -1688,7 +1758,7 @@ export default function PackingListForm({
                 providers={providers}
                 packingType={packingType}
                 availableRolls={availableRolls}
-                allInventory={inventory}
+                allInventory={effectiveFullInventory}
                 packingLists={packingLists}
                 formProviderId={formProviderId}
                 onRemove={handleRemoveArticleGroup}

@@ -15,6 +15,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { RollItem, PackingList } from './types';
 
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -248,6 +249,94 @@ export function seedLocalStorage() {
     setLocalStorageCollection('packinglists', []);
 
     console.log('Local Storage successfully seeded.');
+  }
+}
+
+// Full inventory & collection query helpers that bypass pagination limits
+export async function fetchAllInventoryDocs(): Promise<RollItem[]> {
+  if (getLocalMode()) {
+    return getLocalStorageCollection('inventory') as RollItem[];
+  }
+  try {
+    const snapshot = await getDocs(collection(db, 'inventory'));
+    const list: RollItem[] = [];
+    snapshot.forEach(docSnap => {
+      list.push({ ...docSnap.data(), id: docSnap.id } as RollItem);
+    });
+    return list;
+  } catch (error) {
+    console.error("Error fetching full inventory:", error);
+    return getLocalStorageCollection('inventory') as RollItem[];
+  }
+}
+
+export async function findRollInInventory(rollNumber: string, articleId?: string): Promise<RollItem | null> {
+  const cleanRollNum = rollNumber.trim().toLowerCase();
+  if (getLocalMode()) {
+    const all = getLocalStorageCollection('inventory') as RollItem[];
+    return all.find(r => {
+      const matchRoll = r.rollNumber?.trim().toLowerCase() === cleanRollNum;
+      return articleId ? matchRoll && r.articleId === articleId : matchRoll;
+    }) || null;
+  }
+  try {
+    const snapshot = await getDocs(collection(db, 'inventory'));
+    let found: RollItem | null = null;
+    snapshot.forEach(docSnap => {
+      const data = { ...docSnap.data(), id: docSnap.id } as RollItem;
+      if (data.rollNumber?.trim().toLowerCase() === cleanRollNum) {
+        if (!articleId || data.articleId === articleId) {
+          found = data;
+        }
+      }
+    });
+    return found;
+  } catch (error) {
+    console.error("Error finding roll in inventory:", error);
+    const all = getLocalStorageCollection('inventory') as RollItem[];
+    return all.find(r => {
+      const matchRoll = r.rollNumber?.trim().toLowerCase() === cleanRollNum;
+      return articleId ? matchRoll && r.articleId === articleId : matchRoll;
+    }) || null;
+  }
+}
+
+export async function fetchAllSoldRolls(): Promise<RollItem[]> {
+  if (getLocalMode()) {
+    const all = getLocalStorageCollection('inventory') as RollItem[];
+    return all.filter(r => r.currentMeters === 0 || r.status === 'sold');
+  }
+  try {
+    const snapshot = await getDocs(collection(db, 'inventory'));
+    const list: RollItem[] = [];
+    snapshot.forEach(docSnap => {
+      const data = { ...docSnap.data(), id: docSnap.id } as RollItem;
+      if (data.currentMeters === 0 || data.status === 'sold') {
+        list.push(data);
+      }
+    });
+    return list;
+  } catch (error) {
+    console.error("Error fetching sold rolls:", error);
+    const all = getLocalStorageCollection('inventory') as RollItem[];
+    return all.filter(r => r.currentMeters === 0 || r.status === 'sold');
+  }
+}
+
+export async function fetchAllPackingLists(): Promise<PackingList[]> {
+  if (getLocalMode()) {
+    return getLocalStorageCollection('packinglists') as PackingList[];
+  }
+  try {
+    const snapshot = await getDocs(collection(db, 'packinglists'));
+    const list: PackingList[] = [];
+    snapshot.forEach(docSnap => {
+      list.push({ ...docSnap.data(), id: docSnap.id } as PackingList);
+    });
+    return list;
+  } catch (error) {
+    console.error("Error fetching all packing lists:", error);
+    return getLocalStorageCollection('packinglists') as PackingList[];
   }
 }
 
