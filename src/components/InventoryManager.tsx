@@ -6,6 +6,8 @@ import InventoryExcelPasteParser from './inventory/InventoryExcelPasteParser';
 import { Search, Filter, Plus, FileSpreadsheet, Info, Wrench, Trash2, ShieldAlert, ArrowDownUp, X, CheckCircle, RefreshCw, Package } from 'lucide-react';
 import { exportInventoryToExcel } from '../utils/excelExport';
 import AlertBanner from './AlertBanner';
+import { useToast } from '../context/ToastContext';
+import { analyzeSystemError } from '../lib/diagnostics';
 
 interface InventoryManagerProps {
   inventory: RollItem[];
@@ -48,10 +50,17 @@ export default function InventoryManager({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  const toast = useToast();
   // Form states for creating a new roll
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    message: string;
+    title?: string;
+    rootCause?: string;
+    solution?: string;
+    technicalDetails?: string;
+  } | string | null>(null);
   const [addMode, setAddMode] = useState<'individual' | 'excel'>('individual');
 
   const [rollNo, setRollNo] = useState('');
@@ -144,15 +153,36 @@ export default function InventoryManager({
   const handleAddRollSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProvId) {
-      setError('Por favor elija un proveedor');
+      const diag = {
+        title: 'Proveedor Requerido',
+        message: 'Por favor elija un proveedor.',
+        rootCause: 'El campo de selección de proveedor se encuentra vacío.',
+        solution: 'Seleccione un proveedor de la lista desplegable antes de guardar.'
+      };
+      setError(diag);
+      toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
       return;
     }
     if (!selectedArtId) {
-      setError('Por favor elija un artículo de tela');
+      const diag = {
+        title: 'Artículo Requerido',
+        message: 'Por favor elija un artículo de tela.',
+        rootCause: 'No se ha seleccionado el artículo o tela para este rollo.',
+        solution: 'Seleccione un artículo asociado al proveedor.'
+      };
+      setError(diag);
+      toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
       return;
     }
     if (initialMeters <= 0) {
-      setError('La cantidad en metros debe ser mayor a cero');
+      const diag = {
+        title: 'Metraje Inválido',
+        message: 'La cantidad en metros debe ser mayor a cero.',
+        rootCause: `El metraje ingresado (${initialMeters}) es menor o igual a 0.`,
+        solution: 'Ingrese un valor numérico positivo para los metros iniciales.'
+      };
+      setError(diag);
+      toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
       return;
     }
 
@@ -160,8 +190,6 @@ export default function InventoryManager({
     setError(null);
 
     try {
-      const newId = `roll-${Date.now()}`;
-      
       // Determine what values are required based on provider config
       const finalRollNo = (activeProviderConfig?.hasRollNo ?? true) ? rollNo.trim() : `R-AUTO-${Math.floor(1000 + Math.random() * 9000)}`;
       const finalLot = activeProviderConfig?.hasLot ? lot.trim() : '';
@@ -201,6 +229,7 @@ export default function InventoryManager({
       await addDoc(collection(db, 'inventory'), rollData);
 
       await onRefresh();
+      toast.success(`Rollo ${rollData.rollNumber} (${rollData.currentMeters}m) registrado con éxito.`);
       
       // Reset form
       setRollNo('');
@@ -213,7 +242,15 @@ export default function InventoryManager({
       setShowAddForm(false);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Error al registrar el rollo');
+      const diag = analyzeSystemError(err, { action: 'registrar el rollo de tela', entity: 'inventory' });
+      setError({
+        title: diag.title,
+        message: diag.message,
+        rootCause: diag.rootCause,
+        solution: diag.solution,
+        technicalDetails: diag.technicalDetails
+      });
+      toast.diagnose(err, { action: 'registrar el rollo de tela', entity: 'inventory' });
     } finally {
       setLoading(false);
     }
@@ -230,6 +267,7 @@ export default function InventoryManager({
       }
 
       await onRefresh();
+      toast.success(`Se importaron ${newRolls.length} rollos al almacén exitosamente.`);
       
       // Reset form variables
       setRollNo('');
@@ -242,7 +280,15 @@ export default function InventoryManager({
       setShowAddForm(false);
     } catch (err: any) {
       console.error("Bulk import failed:", err);
-      setError(err.message || 'Error al guardar los rollos en la base de datos.');
+      const diag = analyzeSystemError(err, { action: 'importar rollos masivos desde Excel', entity: 'inventory' });
+      setError({
+        title: diag.title,
+        message: diag.message,
+        rootCause: diag.rootCause,
+        solution: diag.solution,
+        technicalDetails: diag.technicalDetails
+      });
+      toast.diagnose(err, { action: 'importar rollos masivos', entity: 'inventory' });
       throw err;
     } finally {
       setLoading(false);
@@ -258,7 +304,14 @@ export default function InventoryManager({
     if (!roll) return;
 
     if (adjustedMeters < 0) {
-      setError('Los metros actuales no pueden ser menores a 0');
+      const diag = {
+        title: 'Metraje Negativo no Permitido',
+        message: 'Los metros actuales no pueden ser menores a 0.',
+        rootCause: 'Se intentó ingresar un valor numérico negativo en el stock físico.',
+        solution: 'Ingrese un saldo igual o mayor a 0 metros.'
+      };
+      setError(diag);
+      toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
       return;
     }
 
@@ -278,11 +331,20 @@ export default function InventoryManager({
       });
 
       await onRefresh();
+      toast.success(`Stock del rollo ${roll.rollNumber} ajustado a ${adjustedMeters}m.`);
       setAdjustingId(null);
       setAdjustNotes('');
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || 'Error al ajustar el inventario');
+      const diag = analyzeSystemError(err, { action: 'ajustar el inventario del rollo', entity: 'inventory' });
+      setError({
+        title: diag.title,
+        message: diag.message,
+        rootCause: diag.rootCause,
+        solution: diag.solution,
+        technicalDetails: diag.technicalDetails
+      });
+      toast.diagnose(err, { action: 'ajustar el inventario', entity: 'inventory' });
     } finally {
       setLoading(false);
     }
@@ -396,7 +458,11 @@ export default function InventoryManager({
       {error && (
         <AlertBanner
           type="error"
-          message={error}
+          message={typeof error === 'string' ? error : error.message}
+          title={typeof error === 'object' ? error.title : undefined}
+          rootCause={typeof error === 'object' ? error.rootCause : undefined}
+          solution={typeof error === 'object' ? error.solution : undefined}
+          technicalDetails={typeof error === 'object' ? error.technicalDetails : undefined}
           onClose={() => setError(null)}
           id="alert-inv-error"
         />

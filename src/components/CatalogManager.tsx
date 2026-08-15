@@ -6,6 +6,8 @@ import { Plus, Edit2, Trash2, Users, Briefcase, Truck, Layers, Check, X, Search,
 import { exportCatalogToExcel } from '../utils/excelExport';
 import AlertBanner from './AlertBanner';
 import { lookupRucOrDni } from '../lib/sunat';
+import { useToast } from '../context/ToastContext';
+import { analyzeSystemError } from '../lib/diagnostics';
 
 interface CatalogManagerProps {
   clients: Client[];
@@ -30,10 +32,17 @@ export default function CatalogManager({
   initialTab,
   initialSearchQuery
 }: CatalogManagerProps) {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<CatalogTab>('providers');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    message: string;
+    title?: string;
+    rootCause?: string;
+    solution?: string;
+    technicalDetails?: string;
+  } | string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [similarityWarning, setSimilarityWarning] = useState<{
     isOpen: boolean;
@@ -306,10 +315,19 @@ export default function CatalogManager({
       }
 
       await onRefresh();
+      toast.success(editingId ? 'Registro actualizado correctamente en el catálogo.' : 'Nuevo registro agregado con éxito.');
       resetForms();
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Error al guardar el registro');
+      const diag = analyzeSystemError(err, { action: 'guardar registro en el catálogo', entity: activeTab });
+      setError({
+        title: diag.title,
+        message: diag.message,
+        rootCause: diag.rootCause,
+        solution: diag.solution,
+        technicalDetails: diag.technicalDetails
+      });
+      toast.diagnose(err, { action: 'guardar en catálogo', entity: activeTab });
     } finally {
       setLoading(false);
     }
@@ -322,15 +340,81 @@ export default function CatalogManager({
 
     try {
       if (activeTab === 'providers') {
-        if (!provName.trim()) throw new Error('El nombre del proveedor es obligatorio');
+        if (!provName.trim()) {
+          const diag = {
+            title: 'Nombre de Proveedor Requerido',
+            message: 'El nombre del proveedor es obligatorio.',
+            rootCause: 'El campo de nombre comercial del proveedor se encuentra en blanco.',
+            solution: 'Ingrese el nombre o razón social del proveedor textil.'
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
+          setLoading(false);
+          return;
+        }
       } else if (activeTab === 'articles') {
-        if (!artName.trim()) throw new Error('El nombre del artículo es obligatorio');
-        if (!artProvId) throw new Error('Debe asociar un proveedor');
+        if (!artName.trim()) {
+          const diag = {
+            title: 'Nombre de Artículo Requerido',
+            message: 'El nombre del artículo es obligatorio.',
+            rootCause: 'El nombre de la tela o artículo no puede estar vacío.',
+            solution: 'Escriba la denominación del artículo (ej. Franela Reactiva 30/1).'
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
+          setLoading(false);
+          return;
+        }
+        if (!artProvId) {
+          const diag = {
+            title: 'Proveedor no Asociado',
+            message: 'Debe asociar un proveedor.',
+            rootCause: 'No se seleccionó el proveedor de origen del artículo.',
+            solution: 'Seleccione un proveedor de la lista desplegable.'
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
+          setLoading(false);
+          return;
+        }
       } else if (activeTab === 'clients') {
-        if (!cliName.trim()) throw new Error('El nombre del cliente es obligatorio');
-        if (!cliDni.trim()) throw new Error('El DNI/RUC es obligatorio');
+        if (!cliName.trim()) {
+          const diag = {
+            title: 'Nombre de Cliente Requerido',
+            message: 'El nombre del cliente es obligatorio.',
+            rootCause: 'El campo de nombre o razón social del cliente está vacío.',
+            solution: 'Ingrese la razón social o consulte el documento en SUNAT / RENIEC.'
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
+          setLoading(false);
+          return;
+        }
+        if (!cliDni.trim()) {
+          const diag = {
+            title: 'Documento de Identidad Requerido',
+            message: 'El DNI o RUC es obligatorio.',
+            rootCause: 'No se ha indicado el número de documento de identidad del cliente.',
+            solution: 'Ingrese un DNI (8 dígitos) o RUC (11 dígitos) válido.'
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
+          setLoading(false);
+          return;
+        }
       } else if (activeTab === 'sellers') {
-        if (!selName.trim()) throw new Error('El nombre del vendedor es obligatorio');
+        if (!selName.trim()) {
+          const diag = {
+            title: 'Nombre de Vendedor Requerido',
+            message: 'El nombre del vendedor es obligatorio.',
+            rootCause: 'El campo de nombre del vendedor está en blanco.',
+            solution: 'Ingrese el nombre y apellido del vendedor asignado.'
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
+          setLoading(false);
+          return;
+        }
       }
 
       if (!editingId) {
@@ -369,7 +453,15 @@ export default function CatalogManager({
       await executeSave();
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Error al guardar el registro');
+      const diag = analyzeSystemError(err, { action: 'guardar el registro en el catálogo', entity: activeTab });
+      setError({
+        title: diag.title,
+        message: diag.message,
+        rootCause: diag.rootCause,
+        solution: diag.solution,
+        technicalDetails: diag.technicalDetails
+      });
+      toast.diagnose(err, { action: 'guardar registro', entity: activeTab });
       setLoading(false);
     }
   };
@@ -387,9 +479,14 @@ export default function CatalogManager({
     }
 
     if (count > 0) {
-      setError(
-        `No se puede eliminar este registro porque está asociado a ${count} Packing List(s).`
-      );
+      const diag = {
+        title: 'Integridad Referencial Protegida',
+        message: `No se puede eliminar este registro porque está asociado a ${count} Packing List(s).`,
+        rootCause: `Existen documentos de despacho históricos que dependen de este ${tab === 'clients' ? 'cliente' : tab === 'sellers' ? 'vendedor' : tab === 'providers' ? 'proveedor' : 'artículo'}.`,
+        solution: 'Para eliminarlo, primero reasigne o desvincule los Packing Lists que hacen referencia a este registro.'
+      };
+      setError(diag);
+      toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
       return;
     }
 
@@ -399,10 +496,19 @@ export default function CatalogManager({
     try {
       await deleteDoc(doc(db, tab, id));
       await onRefresh();
+      toast.success('Registro eliminado del catálogo correctamente.');
       resetForms();
     } catch (err: any) {
       console.error(err);
-      setError('No se pudo eliminar el registro, puede que esté en uso.');
+      const diag = analyzeSystemError(err, { action: 'eliminar registro del catálogo', entity: tab });
+      setError({
+        title: diag.title,
+        message: diag.message,
+        rootCause: diag.rootCause,
+        solution: diag.solution,
+        technicalDetails: diag.technicalDetails
+      });
+      toast.diagnose(err, { action: 'eliminar del catálogo', entity: tab });
     } finally {
       setLoading(false);
     }
@@ -517,7 +623,11 @@ export default function CatalogManager({
         {error && (
           <AlertBanner
             type="error"
-            message={error}
+            message={typeof error === 'string' ? error : error.message}
+            title={typeof error === 'object' ? error.title : undefined}
+            rootCause={typeof error === 'object' ? error.rootCause : undefined}
+            solution={typeof error === 'object' ? error.solution : undefined}
+            technicalDetails={typeof error === 'object' ? error.technicalDetails : undefined}
             onClose={() => setError(null)}
             id="alert-cat-error"
           />

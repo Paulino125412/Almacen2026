@@ -9,6 +9,8 @@ import { resolveColumnsForText } from './packing-list-form/ExcelPasteParser';
 import ClientSellerSelector from './packing-list-form/ClientSellerSelector';
 import ArticleGroupSection from './packing-list-form/ArticleGroupSection';
 import AlertBanner from './AlertBanner';
+import { useToast } from '../context/ToastContext';
+import { analyzeSystemError } from '../lib/diagnostics';
 
 interface PackingListFormProps {
   clients: Client[];
@@ -85,8 +87,15 @@ export default function PackingListForm({
   // Nested structure state: Article Sections containing multiple rolls
   const [articleGroups, setArticleGroups] = useState<FormArticleGroup[]>([]);
   
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    message: string;
+    title?: string;
+    rootCause?: string;
+    solution?: string;
+    technicalDetails?: string;
+  } | string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const [hasCheckedDraft, setHasCheckedDraft] = useState(false);
@@ -902,19 +911,47 @@ export default function PackingListForm({
 
     // Header validations
     if (!clientId) {
-      setError('Por favor seleccione el Cliente.');
+      const diag = {
+        title: 'Cliente Requerido',
+        message: 'Por favor seleccione el Cliente antes de continuar.',
+        rootCause: 'El campo de Cliente no tiene ningún cliente asignado.',
+        solution: 'Busque y seleccione el cliente en el buscador del formulario o regístrelo en Catálogos.'
+      };
+      setError(diag);
+      toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
       return;
     }
     if (!sellerId) {
-      setError('Por favor seleccione el Vendedor.');
+      const diag = {
+        title: 'Vendedor Requerido',
+        message: 'Por favor seleccione el Vendedor responsable de la orden.',
+        rootCause: 'El campo de Vendedor se encuentra vacío.',
+        solution: 'Seleccione un vendedor de la lista desplegable.'
+      };
+      setError(diag);
+      toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
       return;
     }
     if (!formProviderId) {
-      setError('Por favor seleccione el Proveedor.');
+      const diag = {
+        title: 'Proveedor Requerido',
+        message: 'Por favor seleccione el Proveedor para este despacho.',
+        rootCause: 'No se ha indicado el proveedor o tela matriz.',
+        solution: 'Seleccione el proveedor correspondiente en el selector superior.'
+      };
+      setError(diag);
+      toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
       return;
     }
     if (!packingListNo.trim()) {
-      setError('El número de packing list es obligatorio.');
+      const diag = {
+        title: 'Número de Packing List Obligatorio',
+        message: 'El número correlativo de Packing List no puede estar vacío.',
+        rootCause: 'El campo N° de Packing List está en blanco.',
+        solution: 'Ingrese un número correlativo válido (ej. PL-0001).'
+      };
+      setError(diag);
+      toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
       return;
     }
 
@@ -926,7 +963,14 @@ export default function PackingListForm({
     });
 
     if (isDuplicatePLNo) {
-      setError(`Ya existe un Packing List con el número "${packingListNo.trim()}". Use un número diferente.`);
+      const diag = {
+        title: 'Número de Packing List Duplicado',
+        message: `Ya existe un Packing List registrado con el número "${packingListNo.trim()}".`,
+        rootCause: 'Conflicto de unicidad en la numeración correlativa del comprobante.',
+        solution: 'Asigne una numeración distinta que no haya sido utilizada previamente.'
+      };
+      setError(diag);
+      toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
       return;
     }
 
@@ -934,12 +978,26 @@ export default function PackingListForm({
     for (let gIdx = 0; gIdx < articleGroups.length; gIdx++) {
       const g = articleGroups[gIdx];
       if (!g.articleId) {
-        setError(`Artículo #${gIdx + 1}: Debe seleccionar un Artículo.`);
+        const diag = {
+          title: `Artículo #${gIdx + 1} sin selección`,
+          message: `Debe seleccionar un Artículo en la Sección #${gIdx + 1}.`,
+          rootCause: 'La sección de producto no tiene artículo asociado.',
+          solution: 'Seleccione una tela o artículo del catálogo o elimine la sección vacía.'
+        };
+        setError(diag);
+        toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
         return;
       }
 
       if (g.rolls.length === 0) {
-        setError(`Artículo #${gIdx + 1}: Debe ingresar al menos un metraje/rollo usando el casillero de ingreso rápido.`);
+        const diag = {
+          title: `Sin rollos en Artículo #${gIdx + 1}`,
+          message: `Artículo #${gIdx + 1}: Debe ingresar al menos un metraje/rollo usando el casillero de ingreso rápido.`,
+          rootCause: 'No se han agregado cantidades de metros a este artículo.',
+          solution: 'Escriba o pegue los metrajes en la caja de ingreso rápido y presione Enter o Procesar.'
+        };
+        setError(diag);
+        toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
         return;
       }
 
@@ -950,15 +1008,36 @@ export default function PackingListForm({
         for (let rIdx = 0; rIdx < g.rolls.length; rIdx++) {
           const r = g.rolls[rIdx];
           if (config.hasLot && !r.lot?.trim() && !g.lot.trim() && !g.hasProcessedExcel) {
-            setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El campo Lote es obligatorio.`);
+            const diag = {
+              title: 'Campo Obligatorio Faltante',
+              message: `Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El campo Lote es obligatorio para este proveedor.`,
+              rootCause: 'La regla del proveedor exige lote en cada registro.',
+              solution: 'Complete el lote en la cabecera del artículo o en la fila correspondiente.'
+            };
+            setError(diag);
+            toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
             return;
           }
           if (config.hasPartida && !r.partida?.trim() && !g.partida.trim() && !g.hasProcessedExcel) {
-            setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El campo Partida es obligatorio.`);
+            const diag = {
+              title: 'Campo Obligatorio Faltante',
+              message: `Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El campo Partida es obligatorio para este proveedor.`,
+              rootCause: 'La regla del proveedor exige partida en cada registro.',
+              solution: 'Complete la partida en la cabecera del artículo o en la fila correspondiente.'
+            };
+            setError(diag);
+            toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
             return;
           }
           if (config.hasTono && !r.tono?.trim() && !g.tono.trim() && !g.hasProcessedExcel) {
-            setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El campo Tono es obligatorio.`);
+            const diag = {
+              title: 'Campo Obligatorio Faltante',
+              message: `Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El campo Tono es obligatorio para este proveedor.`,
+              rootCause: 'La regla del proveedor exige tono en cada registro.',
+              solution: 'Complete el tono en la cabecera del artículo o en la fila correspondiente.'
+            };
+            setError(diag);
+            toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
             return;
           }
         }
@@ -968,19 +1047,47 @@ export default function PackingListForm({
       for (let rIdx = 0; rIdx < g.rolls.length; rIdx++) {
         const r = g.rolls[rIdx];
         if ((packingType === 'nuevo' || packingType === 'rollo') && g.source === 'inventory' && !r.rollId) {
-          setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: Debe seleccionar un rollo de stock asignado.`);
+          const diag = {
+            title: 'Rollo sin asignar',
+            message: `Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: Debe seleccionar un rollo de stock asignado.`,
+            rootCause: 'La fila proviene de inventario pero no tiene un ID de rollo físico vinculado.',
+            solution: 'Seleccione un rollo disponible en la lista o cambie a modo directo si no requiere control de inventario.'
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
           return;
         }
         if ((packingType === 'nuevo' || packingType === 'rollo') && g.source === 'custom' && !r.rollNumber.trim() && (!config || (config.hasRollNo ?? true))) {
-          setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El identificador/número de rollo es obligatorio.`);
+          const diag = {
+            title: 'Número de Rollo Requerido',
+            message: `Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: El identificador o número de rollo es obligatorio.`,
+            rootCause: 'El identificador del rollo está en blanco.',
+            solution: 'Escriba un número de rollo o active la autogeneración.'
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
           return;
         }
         if (r.meters <= 0) {
-          setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: Los metros deben ser mayor a 0.`);
+          const diag = {
+            title: 'Metraje Inválido',
+            message: `Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: Los metros deben ser mayor a 0.`,
+            rootCause: `El valor numérico de metros ingresado es ${r.meters}.`,
+            solution: 'Ingrese una cantidad mayor a 0 metros o elimine la fila.'
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
           return;
         }
         if (r.maxMeters && r.meters > r.maxMeters) {
-          setError(`Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: Los metros ingresados (${r.meters}m) superan el stock de almacén disponible para este rollo (${r.maxMeters}m).`);
+          const diag = {
+            title: 'Metraje Supera Stock Disponible',
+            message: `Artículo #${gIdx + 1}, Cantidad #${rIdx + 1}: Los metros ingresados (${r.meters}m) superan el stock de almacén disponible para este rollo (${r.maxMeters}m).`,
+            rootCause: `Stock máximo disponible: ${r.maxMeters}m, solicitado: ${r.meters}m.`,
+            solution: `Ajuste la cantidad a ${r.maxMeters}m o elija otro rollo con suficiente saldo.`
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
           return;
         }
       }
@@ -992,7 +1099,14 @@ export default function PackingListForm({
       for (const r of g.rolls) {
         if (r.rollId) {
           if (seenRollIds[r.rollId]) {
-            setError(`El rollo '${r.rollNumber}' está siendo usado más de una vez en este despacho. Combina las cantidades en una sola fila o elige un rollo diferente.`);
+            const diag = {
+              title: 'Rollo Repetido en el Despacho',
+              message: `El rollo '${r.rollNumber}' está siendo usado más de una vez en este despacho.`,
+              rootCause: 'El mismo rollo físico de inventario fue seleccionado en múltiples filas.',
+              solution: 'Combina las cantidades en una sola fila o selecciona rollos diferentes.'
+            };
+            setError(diag);
+            toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
             return;
           }
           seenRollIds[r.rollId] = r.rollNumber;
@@ -1191,7 +1305,9 @@ export default function PackingListForm({
 
         await onRefresh();
         setIsSuccessfullySaved(true);
-        setSuccess(`¡Packing List ${newPL.packingListNo} registrado correctamente con transacción atómica!`);
+        const msg = `¡Packing List ${newPL.packingListNo} registrado correctamente con transacción atómica!`;
+        setSuccess(msg);
+        toast.success(msg);
         localStorage.removeItem("texflow_draft_packinglist");
         
         // Cargamos vista de impresión/PDF inmediatamente
@@ -1202,7 +1318,15 @@ export default function PackingListForm({
       resetFormState();
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Error al guardar el Packing List');
+      const diag = analyzeSystemError(err, { action: 'guardar el Packing List', entity: 'packing_lists' });
+      setError({
+        title: diag.title,
+        message: diag.message,
+        rootCause: diag.rootCause,
+        solution: diag.solution,
+        technicalDetails: diag.technicalDetails
+      });
+      toast.diagnose(err, { action: 'guardar el Packing List', entity: 'packing_lists' });
     } finally {
       setLoading(false);
     }
@@ -1420,7 +1544,11 @@ export default function PackingListForm({
       {error && (
         <AlertBanner
           type="error"
-          message={error}
+          message={typeof error === 'string' ? error : error.message}
+          title={typeof error === 'object' ? error.title : undefined}
+          rootCause={typeof error === 'object' ? error.rootCause : undefined}
+          solution={typeof error === 'object' ? error.solution : undefined}
+          technicalDetails={typeof error === 'object' ? error.technicalDetails : undefined}
           onClose={() => setError(null)}
           className="mb-4"
           id="alert-pl-error"

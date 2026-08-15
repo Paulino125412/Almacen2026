@@ -25,11 +25,15 @@ import {
   DollarSign,
   Loader2,
   Truck,
-  X
+  X,
+  Save,
+  RotateCcw
 } from 'lucide-react';
 import PrintSalesOrder from './PrintSalesOrder';
 import AlertBanner from './AlertBanner';
 import { lookupRucOrDni } from '../lib/sunat';
+import { useToast } from '../context/ToastContext';
+import { analyzeSystemError } from '../lib/diagnostics';
 
 interface SalesOrderManagerProps {
   clients: Client[];
@@ -44,6 +48,7 @@ export default function SalesOrderManager({
   articles,
   currentOperator
 }: SalesOrderManagerProps) {
+  const toast = useToast();
   const [viewMode, setViewMode] = useState<'create' | 'history'>('create');
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [ordersLimit, setOrdersLimit] = useState(200);
@@ -53,7 +58,13 @@ export default function SalesOrderManager({
 
   // Notifications / Alerts
   const [alertSuccess, setAlertSuccess] = useState<string | null>(null);
-  const [alertError, setAlertError] = useState<string | null>(null);
+  const [alertError, setAlertError] = useState<{
+    message: string;
+    title?: string;
+    rootCause?: string;
+    solution?: string;
+    technicalDetails?: string;
+  } | string | null>(null);
 
   // Print Modal State
   const [printOrder, setPrintOrder] = useState<SalesOrder | null>(null);
@@ -64,6 +75,13 @@ export default function SalesOrderManager({
   // Editing state ID
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingOrderNo, setEditingOrderNo] = useState<string>('');
+
+  // Draft auto-save state
+  const [hasCheckedDraft, setHasCheckedDraft] = useState(false);
+  const [showRecoveryPrompt, setShowRecoveryPrompt] = useState(false);
+  const [draftData, setDraftData] = useState<any>(null);
+  const [lastSavedDraftTime, setLastSavedDraftTime] = useState<string | null>(null);
+  const [isSuccessfullySaved, setIsSuccessfullySaved] = useState(false);
 
   // Form State
   const [sellerName, setSellerName] = useState('');
@@ -90,7 +108,18 @@ export default function SalesOrderManager({
   const handleConsultSunat = async (rucToSearch?: string) => {
     const targetRuc = rucToSearch || clientRucDni;
     if (!targetRuc || targetRuc.trim().length < 8) {
-      setSunatMsg({ type: 'error', text: 'Ingrese un número de RUC (11 dígitos) o DNI (8 dígitos).' });
+      const errDiag = {
+        title: 'Documento Incompleto',
+        message: 'Ingrese un número de RUC (11 dígitos) o DNI (8 dígitos).',
+        rootCause: 'El campo de documento está vacío o tiene menos de 8 caracteres numéricos.',
+        solution: 'Verifique el RUC (11 dígitos) o DNI (8 dígitos) e inténtelo nuevamente.'
+      };
+      setSunatMsg({ type: 'error', text: errDiag.message });
+      toast.warning(errDiag.message, {
+        title: errDiag.title,
+        rootCause: errDiag.rootCause,
+        solution: errDiag.solution
+      });
       return;
     }
     setLoadingSunat(true);
@@ -109,8 +138,19 @@ export default function SalesOrderManager({
         type: 'success', 
         text: `Consultado con éxito: ${res.name}${res.address ? ' | Dir. Fiscal: ' + res.address : ''}` 
       });
+      toast.success(`Datos obtenidos de SUNAT para ${res.name}`);
     } else {
+      const diag = analyzeSystemError(res.error || 'No se pudo consultar en SUNAT', {
+        action: 'consultar RUC/DNI en SUNAT',
+        additionalInfo: targetRuc
+      });
       setSunatMsg({ type: 'error', text: res.error || 'No se pudo consultar en SUNAT.' });
+      toast.warning(diag.message, {
+        title: diag.title,
+        rootCause: diag.rootCause,
+        solution: diag.solution,
+        technicalDetails: diag.technicalDetails
+      });
     }
   };
 
@@ -167,6 +207,164 @@ export default function SalesOrderManager({
     return items.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0);
   }, [items]);
 
+  // Check if form has meaningful content for auto-save
+  const hasContent = useMemo(() => {
+    return !!(
+      clientName.trim() ||
+      clientRucDni.trim() ||
+      selectedClientId ||
+      fiscalAddress.trim() ||
+      dispatchAddress.trim() ||
+      dispatchContactName.trim() ||
+      dispatchContactPhone.trim() ||
+      observations.trim() ||
+      billingName.trim() ||
+      billingRucDni.trim() ||
+      (billedAmount !== '' && Number(billedAmount) > 0) ||
+      (pendingAmount !== '' && Number(pendingAmount) > 0) ||
+      items.length > 1 ||
+      (items[0] && (
+        items[0].code.trim() ||
+        items[0].description.trim() ||
+        Number(items[0].unitPrice) > 0 ||
+        Number(items[0].requestedQty) > 0 ||
+        Number(items[0].dispatchedQty) > 0
+      ))
+    );
+  }, [
+    clientName, clientRucDni, selectedClientId, fiscalAddress,
+    dispatchAddress, dispatchContactName, dispatchContactPhone,
+    observations, billingName, billingRucDni, billedAmount, pendingAmount, items
+  ]);
+
+  // Check for saved draft on mount (only when creating a new order)
+  useEffect(() => {
+    if (!editingId) {
+      try {
+        const saved = localStorage.getItem("texflow_draft_salesorder");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && (
+            parsed.clientName ||
+            parsed.clientRucDni ||
+            parsed.selectedClientId ||
+            parsed.observations ||
+            (parsed.items && parsed.items.length > 0 && parsed.items.some((i: any) => i.code || i.description || (Number(i.requestedQty) || 0) > 0 || (Number(i.unitPrice) || 0) > 0))
+          )) {
+            setDraftData(parsed);
+            setShowRecoveryPrompt(true);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("Error reading sales order draft from localStorage", e);
+      }
+    }
+    setHasCheckedDraft(true);
+  }, [editingId]);
+
+  const handleRecoverDraft = () => {
+    if (draftData) {
+      if (draftData.sellerName !== undefined) setSellerName(draftData.sellerName);
+      if (draftData.sellerId !== undefined) setSellerId(draftData.sellerId);
+      if (draftData.date) setDate(draftData.date);
+      if (draftData.selectedClientId !== undefined) setSelectedClientId(draftData.selectedClientId);
+      if (draftData.clientName !== undefined) setClientName(draftData.clientName);
+      if (draftData.clientRucDni !== undefined) setClientRucDni(draftData.clientRucDni);
+      if (draftData.fiscalAddress !== undefined) setFiscalAddress(draftData.fiscalAddress);
+      if (draftData.dispatchContactName !== undefined) setDispatchContactName(draftData.dispatchContactName);
+      if (draftData.dispatchContactPhone !== undefined) setDispatchContactPhone(draftData.dispatchContactPhone);
+      if (draftData.dispatchAddress !== undefined) setDispatchAddress(draftData.dispatchAddress);
+      if (draftData.floorNumber !== undefined) setFloorNumber(draftData.floorNumber);
+      if (draftData.dispatchDate) setDispatchDate(draftData.dispatchDate);
+      if (draftData.dispatchTime) setDispatchTime(draftData.dispatchTime);
+      if (draftData.paymentMethod) setPaymentMethod(draftData.paymentMethod);
+      if (draftData.billedAmount !== undefined) setBilledAmount(draftData.billedAmount);
+      if (draftData.billingName !== undefined) setBillingName(draftData.billingName);
+      if (draftData.billingRucDni !== undefined) setBillingRucDni(draftData.billingRucDni);
+      if (draftData.pendingAmount !== undefined) setPendingAmount(draftData.pendingAmount);
+      if (draftData.observations !== undefined) setObservations(draftData.observations);
+      if (draftData.items && draftData.items.length > 0) setItems(draftData.items);
+      if (draftData.savedAt) {
+        setLastSavedDraftTime(new Date(draftData.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      }
+    }
+    setShowRecoveryPrompt(false);
+    setHasCheckedDraft(true);
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem("texflow_draft_salesorder");
+    setDraftData(null);
+    setShowRecoveryPrompt(false);
+    setHasCheckedDraft(true);
+    setLastSavedDraftTime(null);
+  };
+
+  // Auto-save draft to localStorage whenever form values change
+  useEffect(() => {
+    if (hasCheckedDraft && !editingId) {
+      if (hasContent) {
+        const now = new Date();
+        const draftObj = {
+          savedAt: now.toISOString(),
+          sellerName,
+          sellerId,
+          date,
+          selectedClientId,
+          clientName,
+          clientRucDni,
+          fiscalAddress,
+          dispatchContactName,
+          dispatchContactPhone,
+          dispatchAddress,
+          floorNumber,
+          dispatchDate,
+          dispatchTime,
+          paymentMethod,
+          billedAmount,
+          billingName,
+          billingRucDni,
+          pendingAmount,
+          observations,
+          items
+        };
+        localStorage.setItem("texflow_draft_salesorder", JSON.stringify(draftObj));
+        setLastSavedDraftTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      } else {
+        localStorage.removeItem("texflow_draft_salesorder");
+        setLastSavedDraftTime(null);
+      }
+    }
+  }, [
+    hasCheckedDraft, hasContent, editingId, sellerName, sellerId, date,
+    selectedClientId, clientName, clientRucDni, fiscalAddress,
+    dispatchContactName, dispatchContactPhone, dispatchAddress, floorNumber,
+    dispatchDate, dispatchTime, paymentMethod, billedAmount, billingName,
+    billingRucDni, pendingAmount, observations, items
+  ]);
+
+  // Reset isSuccessfullySaved when switching to edit
+  useEffect(() => {
+    setIsSuccessfullySaved(false);
+  }, [editingId]);
+
+  // Browser beforeunload protection against accidental close
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasContent && !isSuccessfullySaved && !editingId) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasContent, isSuccessfullySaved, editingId]);
+
   // Handle Client selection - pulls all stored client data
   const handleSelectClient = (clientId: string) => {
     setSelectedClientId(clientId);
@@ -214,7 +412,7 @@ export default function SalesOrderManager({
       } else if (field === 'description' && typeof value === 'string' && value.trim()) {
         const query = value.trim().toLowerCase();
         const found = articles.find(a => 
-          (a.name && a.name.toLowerCase().trim() === query) ||
+          (a.name && a.name.toLowerCase().trim() === query) || 
           (a.code && a.code.toLowerCase().trim() === query)
         );
         if (found) {
@@ -294,12 +492,26 @@ export default function SalesOrderManager({
         totalAmount: 0
       }
     ]);
+
+    localStorage.removeItem("texflow_draft_salesorder");
+    setLastSavedDraftTime(null);
   };
 
   // Save Sales Order
   const handleSaveOrder = async (shouldPrint = false) => {
     if (!clientName.trim()) {
-      setAlertError('Por favor ingrese el nombre del Cliente.');
+      const diag = {
+        title: 'Cliente Requerido',
+        message: 'Por favor ingrese o seleccione el nombre del Cliente.',
+        rootCause: 'El campo de Cliente se encuentra en blanco.',
+        solution: 'Seleccione un cliente del catálogo o escriba el nombre/razón social en el casillero correspondiente.'
+      };
+      setAlertError(diag);
+      toast.warning(diag.message, {
+        title: diag.title,
+        rootCause: diag.rootCause,
+        solution: diag.solution
+      });
       return;
     }
 
@@ -308,7 +520,18 @@ export default function SalesOrderManager({
     );
 
     if (validItems.length === 0) {
-      setAlertError('Por favor ingrese al menos un artículo o producto.');
+      const diag = {
+        title: 'Artículos Requeridos',
+        message: 'Por favor ingrese al menos un artículo o producto.',
+        rootCause: 'No se encontraron filas con descripción o metraje en la tabla de productos.',
+        solution: 'Ingrese el código, descripción y metraje solicitado en la tabla de artículos de la venta.'
+      };
+      setAlertError(diag);
+      toast.warning(diag.message, {
+        title: diag.title,
+        rootCause: diag.rootCause,
+        solution: diag.solution
+      });
       return;
     }
 
@@ -357,18 +580,31 @@ export default function SalesOrderManager({
       if (editingId) {
         await updateDoc(doc(db, 'sales_orders', editingId), payload);
         const fullSaved: SalesOrder = { id: editingId, ...payload };
-        setAlertSuccess('Ficha de Venta actualizada correctamente.');
+        setAlertSuccess(`Ficha de Venta ${payload.orderNo} actualizada correctamente.`);
+        toast.success(`Ficha de Venta ${payload.orderNo} guardada con éxito`);
         if (shouldPrint) setPrintOrder(fullSaved);
       } else {
         const res = await addDoc(collection(db, 'sales_orders'), payload);
         const fullSaved: SalesOrder = { id: res.id, ...payload };
-        setAlertSuccess('Ficha de Venta creada exitosamente.');
+        setAlertSuccess(`Ficha de Venta ${payload.orderNo} creada exitosamente.`);
+        toast.success(`Ficha de Venta ${payload.orderNo} registrada en el sistema`);
+        localStorage.removeItem("texflow_draft_salesorder");
+        setIsSuccessfullySaved(true);
+        setLastSavedDraftTime(null);
         if (shouldPrint) setPrintOrder(fullSaved);
         handleResetForm();
       }
     } catch (err: any) {
       console.error('Error saving sales order:', err);
-      setAlertError(`Ocurrió un error al guardar la Ficha de Venta: ${err?.message || 'Error de conexión o datos inválidos.'}`);
+      const diag = analyzeSystemError(err, { action: 'guardar la Ficha de Venta', entity: 'sales_orders' });
+      setAlertError({
+        title: diag.title,
+        message: diag.message,
+        rootCause: diag.rootCause,
+        solution: diag.solution,
+        technicalDetails: diag.technicalDetails
+      });
+      toast.diagnose(err, { action: 'guardar la Ficha de Venta', entity: 'sales_orders' });
     } finally {
       setLoading(false);
     }
@@ -441,6 +677,65 @@ export default function SalesOrderManager({
 
   return (
     <div className="space-y-6">
+      {/* Draft Recovery Dialog */}
+      {showRecoveryPrompt && (
+        <div className="fixed inset-0 bg-app-bg/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in no-print">
+          <div className="bg-app-surface border border-app-border rounded-xl w-full max-w-md shadow-2xl overflow-hidden text-app-text">
+            {/* Header */}
+            <div className="bg-amber-500/10 border-b border-amber-500/20 p-4 sm:p-5 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <ClipboardList size={18} />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-app-text">Borrador Detectado</h4>
+                <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mt-0.5">
+                  Ficha de Venta sin guardar
+                </p>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 sm:p-6 space-y-4">
+              <p className="text-xs text-app-text/80 leading-relaxed">
+                Se encontró una Ficha de Venta que quedó pendiente en una sesión anterior. ¿Deseas recuperarla para continuar o prefieres descartarla?
+              </p>
+              
+              <div className="bg-app-bg border border-app-border/80 rounded-lg p-3 text-[11px] space-y-1.5 text-app-text/75 font-mono">
+                <div>• <strong>Cliente:</strong> <span className="font-sans">{draftData?.clientName || 'No especificado'}</span></div>
+                {draftData?.clientRucDni && (
+                  <div>• <strong>RUC / DNI:</strong> {draftData.clientRucDni}</div>
+                )}
+                <div>• <strong>Productos:</strong> <span className="font-sans">{draftData?.items?.length || 0} producto(s)</span></div>
+                {draftData?.savedAt && (
+                  <div className="text-[10px] text-app-text/50 pt-1 font-sans border-t border-app-border/50">
+                    Guardado: {new Date(draftData.savedAt).toLocaleString('es-PE')}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="bg-app-bg px-5 py-3.5 border-t border-app-border flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="px-3.5 py-1.5 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 border border-app-border rounded-lg text-xs font-bold transition cursor-pointer"
+              >
+                Descartar
+              </button>
+              <button
+                type="button"
+                onClick={handleRecoverDraft}
+                className="px-3.5 py-1.5 bg-app-primary hover:bg-app-primary/90 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <RotateCcw size={13} />
+                Recuperar Ficha
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Bar */}
       <div className="bg-app-surface border border-app-border rounded-xl p-4 sm:p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -490,25 +785,58 @@ export default function SalesOrderManager({
         <AlertBanner type="success" message={alertSuccess} onClose={() => setAlertSuccess(null)} />
       )}
       {alertError && (
-        <AlertBanner type="error" message={alertError} onClose={() => setAlertError(null)} />
+        <AlertBanner 
+          type="error" 
+          message={typeof alertError === 'string' ? alertError : alertError.message} 
+          title={typeof alertError === 'object' ? alertError.title : undefined}
+          rootCause={typeof alertError === 'object' ? alertError.rootCause : undefined}
+          solution={typeof alertError === 'object' ? alertError.solution : undefined}
+          technicalDetails={typeof alertError === 'object' ? alertError.technicalDetails : undefined}
+          onClose={() => setAlertError(null)} 
+        />
       )}
 
       {/* VIEW MODE 1: CREATE / EDIT FORM */}
       {viewMode === 'create' && (
         <div className="bg-app-surface border border-app-border rounded-xl p-4 sm:p-6 shadow-sm space-y-6">
           <div className="flex flex-wrap items-center justify-between border-b border-app-border/60 pb-3 gap-3">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-app-primary flex items-center gap-2">
-              <ClipboardList size={16} />
-              {editingId ? 'Editando Ficha de Venta' : 'Ficha de Venta Cliente'}
-            </h2>
-            {editingId && (
-              <button
-                onClick={handleResetForm}
-                className="text-xs text-app-text/60 hover:text-app-primary underline cursor-pointer"
-              >
-                Cancelar edición (Crear Nueva)
-              </button>
-            )}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-app-primary flex items-center gap-2">
+                <ClipboardList size={16} />
+                {editingId ? 'Editando Ficha de Venta' : 'Ficha de Venta Cliente'}
+              </h2>
+
+              {!editingId && lastSavedDraftTime && (
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/40">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Borrador autoguardado ({lastSavedDraftTime})</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={handleResetForm}
+                  className="text-xs text-app-text/60 hover:text-app-primary underline cursor-pointer"
+                >
+                  Cancelar edición (Crear Nueva)
+                </button>
+              ) : (
+                hasContent && (
+                  <button
+                    type="button"
+                    onClick={handleResetForm}
+                    className="px-2.5 py-1 text-[11px] text-app-text/60 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md border border-app-border transition flex items-center gap-1 cursor-pointer"
+                    title="Limpiar campos y descartar borrador"
+                  >
+                    <Trash2 size={12} />
+                    Limpiar Formulario
+                  </button>
+                )
+              )}
+            </div>
           </div>
 
           {/* Form Top Section: Seller and Date */}
