@@ -778,6 +778,27 @@ export default function SalesOrderManager({
               </div>
             </div>
 
+            {sunatMsg && (
+              <AlertBanner
+                type={sunatMsg.type}
+                message={
+                  sunatMsg.type === 'error' ? (
+                    <span className="flex items-center gap-2">
+                      {sunatMsg.text}
+                      <button
+                        type="button"
+                        onClick={() => handleConsultSunat()}
+                        className="underline font-bold hover:opacity-80"
+                      >
+                        Reintentar
+                      </button>
+                    </span>
+                  ) : sunatMsg.text
+                }
+                onClose={() => setSunatMsg(null)}
+              />
+            )}
+
             <div className="bg-app-bg/40 p-3 rounded-lg border border-app-border/80">
               <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider flex items-center justify-between">
                 <span>Dirección Fiscal (Registrada en SUNAT / Domicilio)</span>
