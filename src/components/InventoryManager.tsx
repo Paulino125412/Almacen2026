@@ -14,6 +14,11 @@ interface InventoryManagerProps {
   onRefresh: () => Promise<void>;
   currentOperator: string;
   initialSearchTerm?: string;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  // Backward compatibility alias support
+  inventoryHasMore?: boolean;
+  onLoadMoreInventory?: () => void;
 }
 
 export default function InventoryManager({
@@ -22,8 +27,14 @@ export default function InventoryManager({
   articles,
   onRefresh,
   currentOperator,
-  initialSearchTerm = ''
+  initialSearchTerm = '',
+  hasMore,
+  onLoadMore,
+  inventoryHasMore,
+  onLoadMoreInventory
 }: InventoryManagerProps) {
+  const isHasMore = hasMore ?? inventoryHasMore;
+  const handleLoadMore = onLoadMore ?? onLoadMoreInventory;
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
 
   React.useEffect(() => {
@@ -1022,6 +1033,21 @@ export default function InventoryManager({
             </tbody>
           </table>
         </div>
+
+        {/* Load More Button */}
+        {isHasMore && (
+          <div className="p-4 border-t border-app-border bg-app-surface/50 flex justify-center items-center">
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              className="px-4 py-2 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded text-xs font-bold transition flex items-center gap-2 uppercase tracking-wider cursor-pointer shadow-xs"
+              id="btn-load-more-inventory"
+            >
+              <RefreshCw size={13} className="text-app-text/50" />
+              Cargar más
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Custom Roll Deletion Confirmation Modal */}

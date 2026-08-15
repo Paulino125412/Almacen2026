@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { SalesOrder, SalesOrderItem, Client, Seller, Article } from '../types';
 import { db, addDoc, updateDoc, deleteDoc, getLocalStorageCollection, getLocalMode } from '../firebase';
-import { collection, onSnapshot, doc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, query, orderBy, limit } from 'firebase/firestore';
 import { 
   ClipboardList, 
   Plus, 
@@ -46,6 +46,8 @@ export default function SalesOrderManager({
 }: SalesOrderManagerProps) {
   const [viewMode, setViewMode] = useState<'create' | 'history'>('create');
   const [orders, setOrders] = useState<SalesOrder[]>([]);
+  const [ordersLimit, setOrdersLimit] = useState(200);
+  const [ordersHasMore, setOrdersHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -141,14 +143,14 @@ export default function SalesOrderManager({
       setOrders(localData || []);
     } else {
       const unsubscribe = onSnapshot(
-        collection(db, 'sales_orders'),
+        query(collection(db, 'sales_orders'), orderBy('createdAt', 'desc'), limit(ordersLimit)),
         (snapshot) => {
           const list = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
           })) as SalesOrder[];
-          list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
           setOrders(list);
+          setOrdersHasMore(list.length === ordersLimit);
         },
         (err) => {
           console.warn('Fallback to local storage for sales_orders:', err);
@@ -158,7 +160,7 @@ export default function SalesOrderManager({
       );
       return () => unsubscribe();
     }
-  }, []);
+  }, [ordersLimit]);
 
   // Calculate Total Amount
   const computedTotal = useMemo(() => {
@@ -1138,6 +1140,21 @@ export default function SalesOrderManager({
               </tbody>
             </table>
           </div>
+
+          {/* Load More Sales Orders */}
+          {ordersHasMore && (
+            <div className="pt-2 flex justify-center items-center">
+              <button
+                type="button"
+                onClick={() => setOrdersLimit(prev => prev + 200)}
+                className="px-4 py-2 bg-app-surface hover:bg-app-bg text-app-text border border-app-border rounded-lg text-xs font-bold transition flex items-center gap-2 uppercase tracking-wider cursor-pointer shadow-xs"
+                id="btn-load-more-sales-orders"
+              >
+                <RefreshCw size={13} className="text-app-text/50" />
+                Cargar más
+              </button>
+            </div>
+          )}
         </div>
       )}
 

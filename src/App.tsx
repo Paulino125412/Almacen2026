@@ -10,7 +10,7 @@ import {
   seedLocalStorage,
   syncLocalDataToCloud
 } from './firebase';
-import { collection, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { Client, Seller, Provider, Article, RollItem, PackingList } from './types';
 
 // Icons
@@ -68,6 +68,8 @@ export default function App() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [inventory, setInventory] = useState<RollItem[]>([]);
+  const [inventoryLimit, setInventoryLimit] = useState(200);
+  const [inventoryHasMore, setInventoryHasMore] = useState(false);
   const [packingLists, setPackingLists] = useState<PackingList[]>([]);
 
   // Print Modal State
@@ -304,16 +306,6 @@ export default function App() {
         });
         unsubs.push(unsubArticles);
 
-        const unsubInventory = onSnapshot(collection(db, 'inventory'), (snapshot) => {
-          const list: RollItem[] = [];
-          snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id } as RollItem));
-          setInventory(list);
-        }, (error) => {
-          console.error("Firestore Inventory error:", error);
-          triggerFallback("Inventory Permission Denied / Error");
-        });
-        unsubs.push(unsubInventory);
-
         const unsubPackingLists = onSnapshot(collection(db, 'packinglists'), (snapshot) => {
           const list: PackingList[] = [];
           snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id } as PackingList));
@@ -346,6 +338,24 @@ export default function App() {
       });
     };
   }, []);
+
+  // Separate independent effect for Inventory collection with limit
+  useEffect(() => {
+    if (getLocalMode?.() || isLocal) return;
+    const unsubInventory = onSnapshot(
+      query(collection(db, 'inventory'), orderBy('createdAt', 'desc'), limit(inventoryLimit)),
+      (snapshot) => {
+        const list: RollItem[] = [];
+        snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id } as RollItem));
+        setInventory(list);
+        setInventoryHasMore(list.length === inventoryLimit);
+      },
+      (error) => {
+        console.error("Firestore Inventory error:", error);
+      }
+    );
+    return () => unsubInventory();
+  }, [inventoryLimit, isLocal]);
 
   // Refresh helper (mostly handled by onSnapshot, but triggers full check)
   const handleForceRefresh = async () => {
@@ -426,6 +436,8 @@ export default function App() {
             onRefresh={handleForceRefresh}
             currentOperator={currentOperator}
             initialSearchTerm={inventorySearchQuery}
+            hasMore={inventoryHasMore}
+            onLoadMore={() => setInventoryLimit(prev => prev + 200)}
           />
         );
       case 'catalogs':

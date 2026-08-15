@@ -25,13 +25,15 @@ try {
   dbInstance = initializeFirestore(app, {
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager()
-    })
+    }),
+    experimentalAutoDetectLongPolling: true
   }, firebaseConfig.firestoreDatabaseId);
 } catch (err) {
   console.warn("Failed to initialize Firestore with multi-tab offline cache, falling back to standard initialization:", err);
   try {
     dbInstance = initializeFirestore(app, {
-      localCache: persistentLocalCache({})
+      localCache: persistentLocalCache({}),
+      experimentalAutoDetectLongPolling: true
     }, firebaseConfig.firestoreDatabaseId);
   } catch (err2) {
     console.warn("Failed to initialize Firestore with single-tab offline cache, falling back to standard getFirestore:", err2);
@@ -294,7 +296,11 @@ export async function seedDatabaseIfEmpty() {
     let providersSnapshot;
     try {
       providersSnapshot = await getDocs(providersCol);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === 'unavailable' || String(err).includes('offline') || String(err).includes('unavailable')) {
+        console.warn('Firestore is currently in offline mode; skipping cloud seeding check.');
+        return;
+      }
       handleFirestoreError(err, OperationType.GET, 'providers');
       return;
     }
