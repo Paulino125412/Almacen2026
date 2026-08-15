@@ -6,9 +6,52 @@ export interface SunatQueryResult {
   success: boolean;
   name?: string;
   address?: string;
+  department?: string;
+  province?: string;
+  district?: string;
   condition?: string;
   state?: string;
   error?: string;
+}
+
+/**
+ * Helper to build full SUNAT / RENIEC fiscal address with district, province and department
+ */
+export function buildFullFiscalAddress(
+  rawAddress?: string,
+  distrito?: string,
+  provincia?: string,
+  departamento?: string
+): string {
+  const addr = (rawAddress || '').trim().replace(/\s+/g, ' ');
+  const dist = (distrito || '').trim();
+  const prov = (provincia || '').trim();
+  const dep = (departamento || '').trim();
+
+  const ubigeoParts = [dist, prov, dep].filter(Boolean);
+
+  if (!addr) {
+    return ubigeoParts.join(' - ');
+  }
+
+  if (ubigeoParts.length === 0) {
+    return addr;
+  }
+
+  const addrUpper = addr.toUpperCase();
+  const ubigeoSuffix = ubigeoParts.join(' - ').toUpperCase();
+
+  // If address already contains the full ubigeo pattern or district and department
+  if (
+    addrUpper.endsWith(ubigeoSuffix) ||
+    addrUpper.includes(` - ${ubigeoSuffix}`) ||
+    (dist && dep && addrUpper.includes(`- ${dist.toUpperCase()}`) && addrUpper.includes(`- ${dep.toUpperCase()}`))
+  ) {
+    return addr;
+  }
+
+  // Format as: "DIRECCION - DISTRITO - PROVINCIA - DEPARTAMENTO"
+  return `${addr} - ${ubigeoParts.join(' - ')}`;
 }
 
 export async function lookupRucOrDni(number: string): Promise<SunatQueryResult> {
@@ -50,12 +93,16 @@ export async function lookupRucOrDni(number: string): Promise<SunatQueryResult> 
       if (response.ok) {
         const data = await response.json();
         const name = data.razonSocial || data.nombre;
-        const address = data.direccion || data.direccionCompleta || `${data.departamento || ''} ${data.provincia || ''} ${data.distrito || ''}`.trim();
+        const rawAddress = data.direccionCompleta || data.direccion || '';
+        const address = buildFullFiscalAddress(rawAddress, data.distrito, data.provincia, data.departamento);
         if (name) {
           return {
             success: true,
             name: name.trim(),
             address: address ? address.trim() : '',
+            department: data.departamento,
+            province: data.provincia,
+            district: data.distrito,
             condition: data.condicion || 'HABIDO',
             state: data.estado || 'ACTIVO'
           };

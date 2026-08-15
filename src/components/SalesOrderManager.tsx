@@ -802,13 +802,13 @@ export default function SalesOrderManager({
             <div className="bg-app-bg/40 p-3 rounded-lg border border-app-border/80">
               <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider flex items-center justify-between">
                 <span>Dirección Fiscal (Registrada en SUNAT / Domicilio)</span>
-                <span className="text-[10px] text-app-text/50 normal-case font-normal">Solo para comprobantes de pago</span>
+                <span className="text-[10px] text-app-text/50 normal-case font-normal">Incluye calle, distrito, provincia y departamento</span>
               </label>
               <input
                 type="text"
                 value={fiscalAddress}
                 onChange={e => setFiscalAddress(e.target.value)}
-                placeholder="Av. Principal N° 123, Lima (Dirección de Facturación SUNAT)"
+                placeholder="Ej. Av. Nicolás Ayllón 1234 - San Luis - Lima - Lima"
                 className="w-full px-3 py-2 border border-app-border rounded-lg bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
               />
             </div>

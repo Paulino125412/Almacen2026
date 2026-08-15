@@ -120,6 +120,44 @@ async function scrapeElDni(cleanDni: string): Promise<string | null> {
   return null;
 }
 
+// Helper to build full SUNAT / RENIEC fiscal address with district, province and department
+function buildFullFiscalAddress(
+  rawAddress?: string,
+  distrito?: string,
+  provincia?: string,
+  departamento?: string
+): string {
+  const addr = (rawAddress || '').trim().replace(/\s+/g, ' ');
+  const dist = (distrito || '').trim();
+  const prov = (provincia || '').trim();
+  const dep = (departamento || '').trim();
+
+  const ubigeoParts = [dist, prov, dep].filter(Boolean);
+
+  if (!addr) {
+    return ubigeoParts.join(' - ');
+  }
+
+  if (ubigeoParts.length === 0) {
+    return addr;
+  }
+
+  const addrUpper = addr.toUpperCase();
+  const ubigeoSuffix = ubigeoParts.join(' - ').toUpperCase();
+
+  // If address already contains the full ubigeo pattern or district and department
+  if (
+    addrUpper.endsWith(ubigeoSuffix) ||
+    addrUpper.includes(` - ${ubigeoSuffix}`) ||
+    (dist && dep && addrUpper.includes(`- ${dist.toUpperCase()}`) && addrUpper.includes(`- ${dep.toUpperCase()}`))
+  ) {
+    return addr;
+  }
+
+  // Format as: "DIRECCION - DISTRITO - PROVINCIA - DEPARTAMENTO"
+  return `${addr} - ${ubigeoParts.join(' - ')}`;
+}
+
 // Helper to extract clean RUC data (Name, Address, Condition, State)
 function extractRucData(data: any) {
   if (!data) return null;
@@ -128,17 +166,22 @@ function extractRucData(data: any) {
   const name = t.razonSocial || t.razon_social || t.nombre || t.nombre_o_razon_social || t.contribuyente;
   if (!name || typeof name !== 'string' || name.trim().length < 2) return null;
 
-  let address = t.direccion || t.direccionCompleta || t.direccion_fiscal || t.domicilio_fiscal || t.domicilio || '';
-  if (!address && (t.departamento || t.provincia || t.distrito)) {
-    address = `${t.departamento || ''} ${t.provincia || ''} ${t.distrito || ''}`.trim();
-  }
+  const rawAddress = t.direccionCompleta || t.direccion || t.direccion_fiscal || t.domicilio_fiscal || t.domicilio || t.address || '';
+  const distrito = t.distrito || t.district || t.dist || '';
+  const provincia = t.provincia || t.province || t.prov || '';
+  const departamento = t.departamento || t.department || t.dep || t.dpto || '';
+
+  const address = buildFullFiscalAddress(rawAddress, distrito, provincia, departamento);
 
   return {
     success: true,
     name: String(name).trim(),
     address: address ? String(address).trim() : '',
     condition: t.condicion || t.condicion_domicilio || 'HABIDO',
-    state: t.estado || t.estado_contribuyente || 'ACTIVO'
+    state: t.estado || t.estado_contribuyente || 'ACTIVO',
+    department: departamento || undefined,
+    province: provincia || undefined,
+    district: distrito || undefined
   };
 }
 
@@ -223,11 +266,17 @@ async function lookupDecolectaDni(dni: string) {
       const data = await response.json();
       const parsed = data?.data || data?.result || data;
       const name = extractDniName(parsed) || parsed?.nombre || parsed?.nombre_completo || parsed?.razonSocial;
+      const rawAddress = parsed?.direccionCompleta || parsed?.direccion || parsed?.domicilioFiscal || parsed?.domicilio || parsed?.address || '';
+      const distrito = parsed?.distrito || parsed?.district || '';
+      const provincia = parsed?.provincia || parsed?.province || '';
+      const departamento = parsed?.departamento || parsed?.department || '';
+      const address = buildFullFiscalAddress(rawAddress, distrito, provincia, departamento);
+
       if (name && typeof name === 'string' && name.trim().length > 3) {
         return {
           success: true,
           name: name.trim(),
-          address: parsed?.direccion || parsed?.domicilioFiscal || '',
+          address: address ? address.trim() : '',
           source: 'Decolecta RENIEC API'
         };
       }
@@ -267,7 +316,11 @@ async function lookupDecolectaRuc(ruc: string) {
         if (!parsed) continue;
 
         const name = parsed.razonSocial || parsed.razon_social || parsed.nombre || parsed.nombre_completo || extractDniName(parsed);
-        const address = parsed.direccion || parsed.direccionCompleta || parsed.domicilioFiscal || parsed.domicilio_fiscal || parsed.address || '';
+        const rawAddress = parsed.direccionCompleta || parsed.direccion || parsed.domicilioFiscal || parsed.domicilio_fiscal || parsed.address || '';
+        const distrito = parsed.distrito || parsed.district || '';
+        const provincia = parsed.provincia || parsed.province || '';
+        const departamento = parsed.departamento || parsed.department || '';
+        const address = buildFullFiscalAddress(rawAddress, distrito, provincia, departamento);
         const condition = parsed.condicion || parsed.condicion_domicilio || 'HABIDO';
         const state = parsed.estado || parsed.estado_contribuyente || 'ACTIVO';
 
@@ -275,9 +328,12 @@ async function lookupDecolectaRuc(ruc: string) {
           return {
             success: true,
             name: name.trim(),
-            address: typeof address === 'string' ? address.trim() : '',
+            address: address ? address.trim() : '',
             condition,
             state,
+            department: departamento || undefined,
+            province: provincia || undefined,
+            district: distrito || undefined,
             source: 'Decolecta SUNAT API'
           };
         }

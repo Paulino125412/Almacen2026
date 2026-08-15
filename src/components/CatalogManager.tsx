@@ -762,7 +762,7 @@ export default function CatalogManager({
                     type="text"
                     value={cliFiscalAddress}
                     onChange={e => setCliFiscalAddress(e.target.value)}
-                    placeholder="Dirección fiscal registrada en SUNAT"
+                    placeholder="Ej. Av. Nicolás Ayllón 1234 - San Luis - Lima - Lima"
                     className="w-full px-3 py-1.5 border border-app-border rounded bg-app-surface text-app-text text-xs focus:outline-hidden focus:ring-1 focus:ring-app-primary"
                   />
                 </div>
