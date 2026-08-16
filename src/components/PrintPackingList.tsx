@@ -1,9 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useLayoutEffect, useRef } from 'react';
 import { PackingList, PackingListItem, Client, Seller, Provider, Article } from '../types';
 import { FileText, Printer, X, AlertTriangle, MessageCircle } from 'lucide-react';
-
-const ROWS_PER_PAGE = 32;
-const ROWS_PER_LAST_PAGE = 21;
 
 export interface PrintableRow {
   type: 'header' | 'roll' | 'footer';
@@ -15,7 +12,8 @@ export interface PrintableRow {
   groupLength?: number;
 }
 
-export function getPaginatedBlocks(groupedItems: Record<string, PackingListItem[]>, getArticleName: (id: string) => string): PrintableRow[][] {
+// Fallback synchronous block calculation for initial render / SSR
+export function getInitialFlatRows(groupedItems: Record<string, PackingListItem[]>, getArticleName: (id: string) => string): PrintableRow[] {
   const flatItems: PrintableRow[] = [];
   Object.keys(groupedItems).forEach(articleId => {
     const groupItems = groupedItems[articleId];
@@ -45,14 +43,18 @@ export function getPaginatedBlocks(groupedItems: Record<string, PackingListItem[
       groupLength: groupItems.length
     });
   });
+  return flatItems;
+}
 
+export function getPaginatedBlocks(groupedItems: Record<string, PackingListItem[]>, getArticleName: (id: string) => string): PrintableRow[][] {
+  const flatItems = getInitialFlatRows(groupedItems, getArticleName);
+  const ROWS_PER_PAGE = 30;
   const blocks: PrintableRow[][] = [];
   let currentBlock: PrintableRow[] = [];
   let currentRollsInBlock = 0;
 
   for (let i = 0; i < flatItems.length; i++) {
     const row = flatItems[i];
-    
     if (row.type === 'roll') {
       if (currentRollsInBlock >= ROWS_PER_PAGE) {
         blocks.push(currentBlock);
@@ -75,110 +77,7 @@ export function getPaginatedBlocks(groupedItems: Record<string, PackingListItem[
   if (currentBlock.length > 0) {
     blocks.push(currentBlock);
   }
-
-  // If there's only 1 block but it has exactly ROWS_PER_PAGE rolls,
-  // the Totales and Aviso Importante will overflow to a new page with 0 rolls.
-  // To avoid this, we can force-create a second block and move the last roll there.
-  if (blocks.length === 1) {
-    const rollCount = blocks[0].filter(r => r.type === 'roll').length;
-    if (rollCount >= ROWS_PER_PAGE) {
-      blocks.push([]);
-    }
-  }
-
-  // Ensure the last block has at least one roll row
-  if (blocks.length > 1) {
-    const lastBlock = blocks[blocks.length - 1];
-    const hasRoll = lastBlock.some(r => r.type === 'roll');
-    if (!hasRoll) {
-      const prevBlock = blocks[blocks.length - 2];
-      // Find the last roll in prevBlock
-      let lastRollIdx = -1;
-      for (let j = prevBlock.length - 1; j >= 0; j--) {
-        if (prevBlock[j].type === 'roll') {
-          lastRollIdx = j;
-          break;
-        }
-      }
-      if (lastRollIdx !== -1) {
-        const rollToMove = prevBlock[lastRollIdx];
-        prevBlock.splice(lastRollIdx, 1);
-        lastBlock.unshift(rollToMove);
-        
-        // Move its header too if there are no more rolls of that article in prevBlock
-        const articleIdOfMovedRoll = rollToMove.articleId;
-        const remainingRollsOfArticle = prevBlock.filter(r => r.type === 'roll' && r.articleId === articleIdOfMovedRoll).length;
-        if (remainingRollsOfArticle === 0) {
-          const headerIdx = prevBlock.findIndex(r => r.type === 'header' && r.articleId === articleIdOfMovedRoll);
-          if (headerIdx !== -1) {
-            const headerToMove = prevBlock[headerIdx];
-            prevBlock.splice(headerIdx, 1);
-            lastBlock.unshift(headerToMove);
-          }
-          // Move the footer too
-          const footerIdx = prevBlock.findIndex(r => r.type === 'footer' && r.articleId === articleIdOfMovedRoll);
-          if (footerIdx !== -1) {
-            const footerToMove = prevBlock[footerIdx];
-            prevBlock.splice(footerIdx, 1);
-            const rollIdxInLast = lastBlock.indexOf(rollToMove);
-            if (rollIdxInLast !== -1) {
-              lastBlock.splice(rollIdxInLast + 1, 0, footerToMove);
-            } else {
-              lastBlock.push(footerToMove);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // If the final block has more rolls than can safely share a page with the
-  // Totales + Aviso Importante footer, push the overflow into a new trailing block.
-  while (true) {
-    const lastBlock = blocks[blocks.length - 1];
-    const lastBlockRollCount = lastBlock.filter(r => r.type === 'roll').length;
-    if (lastBlockRollCount <= ROWS_PER_LAST_PAGE || lastBlock.length === 0) break;
-
-    const overflowBlock: PrintableRow[] = [];
-    let rollsToMove = lastBlockRollCount - ROWS_PER_LAST_PAGE;
-
-    while (rollsToMove > 0) {
-      let idx = -1;
-      for (let j = lastBlock.length - 1; j >= 0; j--) {
-        if (lastBlock[j].type === 'roll') { idx = j; break; }
-      }
-      if (idx === -1) break;
-
-      const rollRow = lastBlock[idx];
-      lastBlock.splice(idx, 1);
-      overflowBlock.unshift(rollRow);
-      rollsToMove--;
-
-      const articleId = rollRow.articleId;
-      const remainingRollsOfArticle = lastBlock.filter(
-        r => r.type === 'roll' && r.articleId === articleId
-      ).length;
-
-      if (remainingRollsOfArticle === 0) {
-        const headerIdx = lastBlock.findIndex(r => r.type === 'header' && r.articleId === articleId);
-        if (headerIdx !== -1) {
-          const headerRow = lastBlock[headerIdx];
-          lastBlock.splice(headerIdx, 1);
-          overflowBlock.unshift(headerRow);
-        }
-        const footerIdx = lastBlock.findIndex(r => r.type === 'footer' && r.articleId === articleId);
-        if (footerIdx !== -1) {
-          const footerRow = lastBlock[footerIdx];
-          lastBlock.splice(footerIdx, 1);
-          overflowBlock.push(footerRow);
-        }
-      }
-    }
-
-    blocks.push(overflowBlock);
-  }
-
-  return blocks;
+  return blocks.length > 0 ? blocks : [[]];
 }
 
 interface PrintPackingListProps {
@@ -359,9 +258,203 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
     return groups;
   }, [packingList.items]);
 
-  const paginatedBlocks = useMemo(() => {
+  const flatRows = useMemo(() => {
+    return getInitialFlatRows(groupedItems, getArticleName);
+  }, [groupedItems, articles]);
+
+  // Initial fallback blocks
+  const initialBlocks = useMemo(() => {
     return getPaginatedBlocks(groupedItems, getArticleName);
   }, [groupedItems, articles]);
+
+  const [measuredBlocks, setMeasuredBlocks] = useState<PrintableRow[][]>(initialBlocks);
+
+  // Hidden measurement refs
+  const measureContainerRef = useRef<HTMLDivElement>(null);
+  const measureHeaderRef = useRef<HTMLDivElement>(null);
+  const measureRowsContainerRef = useRef<HTMLTableSectionElement>(null);
+  const measureFooterBlockRef = useRef<HTMLDivElement>(null);
+
+  // Layout-based measurement and dynamic splitting
+  useLayoutEffect(() => {
+    if (!measureContainerRef.current || !measureHeaderRef.current || !measureRowsContainerRef.current) {
+      return;
+    }
+
+    try {
+      // 1. Measure header height
+      const headerHeight = measureHeaderRef.current.getBoundingClientRect().height;
+      
+      // 2. Measure table thead height
+      const theadEl = measureContainerRef.current.querySelector('thead');
+      const theadHeight = theadEl ? theadEl.getBoundingClientRect().height : 26;
+
+      // 3. Measure bottom footer block height (Grand Totals + Aviso Importante)
+      const footerBlockHeight = measureFooterBlockRef.current 
+        ? measureFooterBlockRef.current.getBoundingClientRect().height 
+        : 130;
+
+      // 4. Measure each individual row height
+      const rowElements = Array.from(measureRowsContainerRef.current.querySelectorAll('[data-row-index]')) as HTMLElement[];
+      const rowHeights = rowElements.map(el => Math.max(el.getBoundingClientRect().height, 20));
+
+      if (rowHeights.length !== flatRows.length) {
+        return;
+      }
+
+      // Height of available page content in px at 96 DPI:
+      // A4 is 297mm height. Padding is 12mm top + 12mm bottom = 24mm.
+      // Net printable height = (297 - 24) * 3.779527559 = ~1031.8px.
+      // Page 1 to N-1 (which don't have Totales + Aviso) can use up to ~995px so the table reaches the bottom.
+      const PAGE_USABLE_HEIGHT = 995;
+      
+      // Full page capacity (for page 1..N-1 that do NOT have the bottom Aviso):
+      const fullPageContentHeight = PAGE_USABLE_HEIGHT - headerHeight - theadHeight;
+      // Last page capacity (which MUST accommodate Totales + Aviso Importante at the bottom):
+      const lastPageContentHeight = fullPageContentHeight - footerBlockHeight;
+
+      // First check: does EVERYTHING fit in a SINGLE page including the Aviso Importante?
+      let totalAllRowsHeight = 0;
+      rowHeights.forEach(h => { totalAllRowsHeight += h; });
+
+      if (totalAllRowsHeight <= lastPageContentHeight) {
+        // Fits entirely on 1 page!
+        setMeasuredBlocks([flatRows]);
+        return;
+      }
+
+      // Multi-page distribution:
+      // Page 1 to N-1 fill up to fullPageContentHeight (filling the sheet comfortably to the bottom)
+      const dynamicPages: PrintableRow[][] = [];
+      let currentPage: PrintableRow[] = [];
+      let currentHeight = 0;
+
+      for (let i = 0; i < flatRows.length; i++) {
+        const row = flatRows[i];
+        const rowH = rowHeights[i] || 24;
+
+        if (currentHeight + rowH > fullPageContentHeight && currentPage.length > 0) {
+          dynamicPages.push(currentPage);
+          currentPage = [];
+          currentHeight = 0;
+        }
+
+        currentPage.push(row);
+        currentHeight += rowH;
+      }
+
+      if (currentPage.length > 0) {
+        dynamicPages.push(currentPage);
+      }
+
+      if (dynamicPages.length === 0) {
+        dynamicPages.push([]);
+      }
+
+      // Ensure the final page does not overflow its lastPageContentHeight
+      while (true) {
+        const lastPage = dynamicPages[dynamicPages.length - 1];
+        if (!lastPage || lastPage.length === 0) break;
+
+        let lastPageRowsHeight = 0;
+        lastPage.forEach(r => {
+          const originalIdx = flatRows.indexOf(r);
+          lastPageRowsHeight += (originalIdx !== -1 ? rowHeights[originalIdx] : 24);
+        });
+
+        const lastPageRollCount = lastPage.filter(r => r.type === 'roll').length;
+        if (lastPageRowsHeight <= lastPageContentHeight || lastPageRollCount <= 1) {
+          break;
+        }
+
+        // Detach footers
+        const detachedFooters: PrintableRow[] = [];
+        while (lastPage.length > 0 && lastPage[lastPage.length - 1].type === 'footer') {
+          detachedFooters.unshift(lastPage.pop()!);
+        }
+
+        const overflowPage: PrintableRow[] = [];
+        
+        while (lastPage.filter(r => r.type === 'roll').length > 0) {
+          let currentLastPageHeight = 0;
+          lastPage.forEach(r => {
+            const origIdx = flatRows.indexOf(r);
+            currentLastPageHeight += (origIdx !== -1 ? rowHeights[origIdx] : 24);
+          });
+
+          if (currentLastPageHeight <= lastPageContentHeight && lastPage.filter(r => r.type === 'roll').length > 0) {
+            break;
+          }
+
+          let idx = -1;
+          for (let j = lastPage.length - 1; j >= 0; j--) {
+            if (lastPage[j].type === 'roll') { idx = j; break; }
+          }
+          if (idx === -1) break;
+
+          const rollRow = lastPage[idx];
+          lastPage.splice(idx, 1);
+          overflowPage.unshift(rollRow);
+
+          const articleId = rollRow.articleId;
+          const remainingRollsOfArticle = lastPage.filter(
+            r => r.type === 'roll' && r.articleId === articleId
+          ).length;
+          if (remainingRollsOfArticle === 0) {
+            const headerIdx = lastPage.findIndex(r => r.type === 'header' && r.articleId === articleId);
+            if (headerIdx !== -1) {
+              const headerRow = lastPage[headerIdx];
+              lastPage.splice(headerIdx, 1);
+              overflowPage.unshift(headerRow);
+            }
+          }
+        }
+
+        detachedFooters.forEach(footerRow => {
+          const articleId = footerRow.articleId;
+          const movedToOverflow = overflowPage.some(r => r.type === 'roll' && r.articleId === articleId);
+          if (movedToOverflow) {
+            overflowPage.push(footerRow);
+          } else {
+            lastPage.push(footerRow);
+          }
+        });
+
+        dynamicPages.push(overflowPage);
+      }
+
+      // Ensure that every page has at least 1 roll row (avoids orphan headers)
+      if (dynamicPages.length > 1) {
+        const lastPage = dynamicPages[dynamicPages.length - 1];
+        if (lastPage.filter(r => r.type === 'roll').length === 0) {
+          const prevPage = dynamicPages[dynamicPages.length - 2];
+          let lastRollIdx = -1;
+          for (let j = prevPage.length - 1; j >= 0; j--) {
+            if (prevPage[j].type === 'roll') { lastRollIdx = j; break; }
+          }
+          if (lastRollIdx !== -1) {
+            const rollToMove = prevPage[lastRollIdx];
+            prevPage.splice(lastRollIdx, 1);
+            lastPage.unshift(rollToMove);
+
+            const articleId = rollToMove.articleId;
+            if (prevPage.filter(r => r.type === 'roll' && r.articleId === articleId).length === 0) {
+              const hIdx = prevPage.findIndex(r => r.type === 'header' && r.articleId === articleId);
+              if (hIdx !== -1) {
+                const hRow = prevPage[hIdx];
+                prevPage.splice(hIdx, 1);
+                lastPage.unshift(hRow);
+              }
+            }
+          }
+        }
+      }
+
+      setMeasuredBlocks(dynamicPages);
+    } catch (e) {
+      console.warn("Layout measurement fallback:", e);
+    }
+  }, [flatRows, articles, packingList]);
 
   return (
     <div id="print-section" className="fixed inset-0 bg-app-bg/75 backdrop-blur-xs z-50 overflow-y-auto p-4 md:p-6 flex justify-center items-start print-overlay-container">
@@ -773,8 +866,8 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
                 />
               ) : (
                 <>
-                  {/* COPY 1: ORIGINAL CLIENT COPY */}
-                  {paginatedBlocks.map((block, pageIdx) => (
+                  {/* Measured Print Pages with real layout geometry */}
+                  {measuredBlocks.map((block, pageIdx) => (
                     <PaginatedSinglePrintPage
                       key={`cli-${pageIdx}`}
                       title="PACKING LIST"
@@ -786,7 +879,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
                       totalRolls={totalRolls}
                       totalMeters={totalMeters}
                       providers={providers}
-                      isLastPage={pageIdx === paginatedBlocks.length - 1}
+                      isLastPage={pageIdx === measuredBlocks.length - 1}
                       bottomContent={
                         <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black print:bg-white">
                           <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
@@ -812,6 +905,118 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
             </>
           )}
 
+        </div>
+      </div>
+
+      {/* OFF-SCREEN MEASUREMENT SANDBOX (hidden from user and print, strictly for DOM geometry) */}
+      <div 
+        ref={measureContainerRef}
+        aria-hidden="true"
+        className="no-print pointer-events-none"
+        style={{
+          position: 'fixed',
+          top: -99999,
+          left: -99999,
+          width: '768px', // matches max-w-3xl inside container
+          visibility: 'hidden',
+          opacity: 0,
+          zIndex: -100
+        }}
+      >
+        <div className="px-6 py-4 md:px-8 md:py-6 font-sans">
+          {/* Measure Header Section */}
+          <div ref={measureHeaderRef}>
+            <div className="flex justify-between items-center mb-1">
+              <h1 className="text-xl md:text-2xl font-display text-app-primary">PACKING LIST</h1>
+              <div className="h-16 w-16"></div>
+            </div>
+            <div className="flex justify-between items-start text-[11px] md:text-xs border-b border-app-border pb-2 mb-3">
+              <div className="space-y-0.5">
+                <p className="font-bold">CLIENTE: <span className="font-normal uppercase">{client?.name || 'Cliente'}</span></p>
+                {packingList.dispatchAddress && (
+                  <p className="font-bold">DESTINO: <span className="font-normal uppercase">{packingList.dispatchAddress}</span></p>
+                )}
+                <p className="font-bold">GUÍA N°: <span className="font-normal uppercase">{packingList.guideNumber || '___________'}</span></p>
+              </div>
+              <div className="text-right space-y-0.5">
+                <p className="font-bold">VENDEDOR: <span className="font-normal uppercase">{seller?.name || 'Vendedor'}</span></p>
+                <p className="font-bold">FECHA: <span className="font-normal font-mono">{packingList.date}</span></p>
+              </div>
+            </div>
+          </div>
+
+          {/* Measure Table */}
+          <table className="w-full text-left border-collapse border-b border-app-border text-xs mb-4">
+            <thead>
+              <tr className="border-b-2 border-app-border text-[10px] uppercase font-bold tracking-wider">
+                <th className="py-1 px-1 w-2/5">ITEM</th>
+                <th className="py-1 px-1 text-center w-24">LOTE</th>
+                <th className="py-1 px-1 text-center w-28">PARTIDA</th>
+                <th className="py-1 px-1 text-right w-32">METRAJE</th>
+              </tr>
+            </thead>
+            <tbody ref={measureRowsContainerRef}>
+              {flatRows.map((row, idx) => {
+                if (row.type === 'header') {
+                  return (
+                    <tr key={`m-h-${idx}`} data-row-index={idx} className="border-b border-app-border font-bold">
+                      <td colSpan={4} className="py-1 px-1 uppercase text-[11px] font-bold">
+                        {row.articleName}
+                      </td>
+                    </tr>
+                  );
+                } else if (row.type === 'roll') {
+                  const item = row.item!;
+                  return (
+                    <tr key={`m-r-${idx}`} data-row-index={idx} className="border-b border-app-border/40">
+                      <td className="py-1 px-1 font-mono text-[10.5px] pl-3 font-bold">
+                        {(row.index ?? 0) + 1}
+                      </td>
+                      <td className="py-1 px-1 text-center font-mono text-[11px]">{item.lot || '-'}</td>
+                      <td className="py-1 px-1 text-center font-mono text-[11px]">{item.partida || '-'}</td>
+                      <td className="py-1 px-1 text-right font-mono font-bold text-[11px]">{Number(item.meters).toFixed(2)} m</td>
+                    </tr>
+                  );
+                } else if (row.type === 'footer') {
+                  return (
+                    <tr key={`m-f-${idx}`} data-row-index={idx} className="border-b-2 border-app-border font-bold text-[11px]">
+                      <td colSpan={3} className="py-1.5 px-1 uppercase text-right font-bold">
+                        {row.articleName} -- Cantidad: {row.groupLength} | Total:
+                      </td>
+                      <td className="py-1.5 px-1 text-right font-mono font-black">
+                        {(row.articleTotalMeters ?? 0).toFixed(2)} m
+                      </td>
+                    </tr>
+                  );
+                }
+                return null;
+              })}
+            </tbody>
+          </table>
+
+          {/* Measure Footer Block (Grand Totals + Aviso Importante) */}
+          <div ref={measureFooterBlockRef} className="pt-2">
+            <div className="flex flex-col items-end justify-end mt-2 text-xs font-bold space-y-0.5">
+              <p className="uppercase tracking-tight">TOTAL ROLLOS: <span className="font-mono font-black text-sm">{totalRolls}</span></p>
+              <p className="uppercase tracking-tight font-display">TOTAL METROS: <span className="font-mono font-black text-md">{totalMeters.toFixed(2)} m</span></p>
+            </div>
+            <div className="mt-4 border border-app-border rounded-lg p-2.5">
+              <h3 className="text-[10px] font-black uppercase tracking-widest mb-1.5 text-center border-b pb-0.5 py-0.5">
+                AVISO IMPORTANTE
+              </h3>
+              <div className="text-[8px] font-medium leading-normal uppercase">
+                <p className="mb-1">
+                  1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
+                </p>
+                <p className="mb-1">
+                  2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
+                </p>
+                <p className="font-black text-center pt-1 border-t">
+                  DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -871,40 +1076,40 @@ function PaginatedSinglePrintPage({
     + (hasWeight ? 1 : 0);
 
   return (
-    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text p-8 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 print-page print:border-none print:shadow-none print:p-0 print:my-0 print:bg-white print:min-h-[296mm] flex flex-col justify-between">
+    <div translate="no" className="notranslate ticket-perforated bg-app-surface text-app-text px-6 py-4 md:px-8 md:py-6 border border-app-border rounded-xl shadow-lg font-sans max-w-3xl mx-auto my-2 print-page print:border-none print:shadow-none print:p-0 print:my-0 print:bg-white print:min-h-[296mm] flex flex-col justify-between">
       <div>
         <div className="flex justify-between items-center mb-1">
           <div className="flex flex-col">
-            <h1 className="text-2xl font-display text-app-primary">{title}</h1>
+            <h1 className="text-xl md:text-2xl font-display text-app-primary">{title}</h1>
           </div>
           <div className="flex items-center gap-3">
             <img 
               src="/logo-juditex.png" 
               alt="Juditex" 
-              className="h-24 w-auto object-contain print:opacity-100" 
+              className="h-16 w-auto object-contain print:opacity-100" 
               referrerPolicy="no-referrer"
             />
           </div>
         </div>
 
         {/* Client and Sales Representative at the same height */}
-        <div className="flex justify-between items-start text-xs border-b border-app-border pb-3 mb-6">
-          <div className="space-y-1">
+        <div className="flex justify-between items-start text-[11px] md:text-xs border-b border-app-border pb-2 mb-3">
+          <div className="space-y-0.5">
             <p className="font-bold">
               CLIENTE: <span className="font-normal uppercase text-app-text/90">{client?.name || 'Cliente Eliminado'}</span>
             </p>
             {packingList.dispatchAddress && (
-              <p className="font-bold mt-1">
+              <p className="font-bold">
                 DESTINO: <span className="font-normal uppercase text-app-text/90">{packingList.dispatchAddress}</span>
               </p>
             )}
-            <p className="font-bold mt-1">
+            <p className="font-bold">
               GUÍA N°: <span className="font-normal uppercase text-app-text/90">
                 {packingList.guideNumber || '___________'}
               </span>
             </p>
           </div>
-          <div className="text-right space-y-1">
+          <div className="text-right space-y-0.5">
             <p className="font-bold">
               VENDEDOR: <span className="font-normal uppercase text-app-text/90">{seller?.name || 'Vendedor Autorizado'}</span>
             </p>
@@ -915,19 +1120,19 @@ function PaginatedSinglePrintPage({
         </div>
 
         {/* Elegant Grouped Articles Table */}
-        <div className="mb-6">
+        <div className="mb-4">
           <table className="w-full text-left border-collapse border-b border-app-border text-xs">
             <thead>
               <tr className="border-b-2 border-app-border text-[10px] text-app-text uppercase font-bold tracking-wider">
-                <th className="py-1.5 px-1 w-2/5">
+                <th className="py-1 px-1 w-2/5">
                   {hasRollNo ? 'Nº ROLLO' : 'ITEM'}
                 </th>
-                {showLot && <th className="py-1.5 px-1 text-center w-24">LOTE</th>}
-                {showPartida && <th className="py-1.5 px-1 text-center w-28">PARTIDA</th>}
-                {hasTono && <th className="py-1.5 px-1 text-center w-20">TONO</th>}
-                {hasWidth && <th className="py-1.5 px-1 text-center w-20">ANCHO</th>}
-                {hasWeight && <th className="py-1.5 px-1 text-center w-20">PESO</th>}
-                <th className="py-1.5 px-1 text-right w-32">METRAJE</th>
+                {showLot && <th className="py-1 px-1 text-center w-24">LOTE</th>}
+                {showPartida && <th className="py-1 px-1 text-center w-28">PARTIDA</th>}
+                {hasTono && <th className="py-1 px-1 text-center w-20">TONO</th>}
+                {hasWidth && <th className="py-1 px-1 text-center w-20">ANCHO</th>}
+                {hasWeight && <th className="py-1 px-1 text-center w-20">PESO</th>}
+                <th className="py-1 px-1 text-right w-32">METRAJE</th>
               </tr>
             </thead>
             <tbody>
@@ -935,7 +1140,7 @@ function PaginatedSinglePrintPage({
                 if (row.type === 'header') {
                   return (
                     <tr key={`h-${row.articleId}-${idx}`} className="border-b border-app-border font-bold bg-app-bg/25 print:bg-white">
-                      <td colSpan={colSpanHeader} className="py-1.5 px-1 text-app-primary uppercase text-[11px] tracking-tight font-bold">
+                      <td colSpan={colSpanHeader} className="py-1 px-1 text-app-primary uppercase text-[11px] tracking-tight font-bold">
                         {row.articleName}
                       </td>
                     </tr>
@@ -944,7 +1149,7 @@ function PaginatedSinglePrintPage({
                   const item = row.item!;
                   return (
                     <tr key={`r-${item.id || idx}`} className="border-b border-app-border/40 hover:bg-app-bg/10">
-                      <td className="py-1 px-1 font-mono text-[10.5px] pl-4 font-bold">
+                      <td className="py-1 px-1 font-mono text-[10.5px] pl-3 font-bold">
                         {hasRollNo ? (item.rollNumber || '-') : ((row.index ?? 0) + 1)}
                       </td>
                       {showLot && <td className="py-1 px-1 text-center font-mono text-[11px]">{item.lot || '-'}</td>}
@@ -958,10 +1163,10 @@ function PaginatedSinglePrintPage({
                 } else if (row.type === 'footer') {
                   return (
                     <tr key={`f-${row.articleId}-${idx}`} className="border-b-2 border-app-border font-bold text-[11px] bg-app-bg/10 print:bg-white">
-                      <td colSpan={colSpanSummary} className="py-2 px-1 uppercase text-right tracking-tight font-bold text-app-text/75">
+                      <td colSpan={colSpanSummary} className="py-1.5 px-1 uppercase text-right tracking-tight font-bold text-app-text/75">
                         {row.articleName} -- Cantidad: {row.groupLength} | Total:
                       </td>
-                      <td className="py-2 px-1 text-right font-mono text-app-primary font-black">
+                      <td className="py-1.5 px-1 text-right font-mono text-app-primary font-black">
                         {(row.articleTotalMeters ?? 0).toFixed(2)} m
                       </td>
                     </tr>
@@ -974,7 +1179,7 @@ function PaginatedSinglePrintPage({
 
           {/* Grand Totals Section */}
           {isLastPage && (
-            <div className="flex flex-col items-end justify-end mt-3 text-xs font-bold space-y-1">
+            <div className="flex flex-col items-end justify-end mt-2 text-xs font-bold space-y-0.5">
               <p className="uppercase tracking-tight">TOTAL ROLLOS: <span className="font-mono font-black text-sm text-app-secondary">{totalRolls}</span></p>
               <p className="uppercase tracking-tight font-display text-app-primary">TOTAL METROS: <span className="font-mono font-black text-md">{totalMeters.toFixed(2)} m</span></p>
             </div>
