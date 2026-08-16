@@ -30,7 +30,6 @@ import {
   RotateCcw
 } from 'lucide-react';
 import PrintSalesOrder from './PrintSalesOrder';
-import AlertBanner from './AlertBanner';
 import { lookupRucOrDni } from '../lib/sunat';
 import { useToast } from '../context/ToastContext';
 import { analyzeSystemError } from '../lib/diagnostics';
@@ -55,16 +54,6 @@ export default function SalesOrderManager({
   const [ordersHasMore, setOrdersHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Notifications / Alerts
-  const [alertSuccess, setAlertSuccess] = useState<string | null>(null);
-  const [alertError, setAlertError] = useState<{
-    message: string;
-    title?: string;
-    rootCause?: string;
-    solution?: string;
-    technicalDetails?: string;
-  } | string | null>(null);
 
   // Print Modal State
   const [printOrder, setPrintOrder] = useState<SalesOrder | null>(null);
@@ -103,7 +92,6 @@ export default function SalesOrderManager({
 
   // SUNAT Lookup state
   const [loadingSunat, setLoadingSunat] = useState(false);
-  const [sunatMsg, setSunatMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleConsultSunat = async (rucToSearch?: string) => {
     const targetRuc = rucToSearch || clientRucDni;
@@ -114,7 +102,6 @@ export default function SalesOrderManager({
         rootCause: 'El campo de documento está vacío o tiene menos de 8 caracteres numéricos.',
         solution: 'Verifique el RUC (11 dígitos) o DNI (8 dígitos) e inténtelo nuevamente.'
       };
-      setSunatMsg({ type: 'error', text: errDiag.message });
       toast.warning(errDiag.message, {
         title: errDiag.title,
         rootCause: errDiag.rootCause,
@@ -123,7 +110,6 @@ export default function SalesOrderManager({
       return;
     }
     setLoadingSunat(true);
-    setSunatMsg(null);
     const res = await lookupRucOrDni(targetRuc);
     setLoadingSunat(false);
     if (res.success && res.name) {
@@ -134,22 +120,21 @@ export default function SalesOrderManager({
       }
       if (!billingName) setBillingName(res.name);
       if (!billingRucDni) setBillingRucDni(targetRuc);
-      setSunatMsg({ 
-        type: 'success', 
-        text: `Consultado con éxito: ${res.name}${res.address ? ' | Dir. Fiscal: ' + res.address : ''}` 
-      });
       toast.success(`Datos obtenidos de SUNAT para ${res.name}`);
     } else {
       const diag = analyzeSystemError(res.error || 'No se pudo consultar en SUNAT', {
         action: 'consultar RUC/DNI en SUNAT',
         additionalInfo: targetRuc
       });
-      setSunatMsg({ type: 'error', text: res.error || 'No se pudo consultar en SUNAT.' });
       toast.warning(diag.message, {
         title: diag.title,
         rootCause: diag.rootCause,
         solution: diag.solution,
-        technicalDetails: diag.technicalDetails
+        technicalDetails: diag.technicalDetails,
+        action: {
+          label: 'Reintentar',
+          onClick: () => handleConsultSunat(targetRuc)
+        }
       });
     }
   };
@@ -506,7 +491,6 @@ export default function SalesOrderManager({
         rootCause: 'El campo de Cliente se encuentra en blanco.',
         solution: 'Seleccione un cliente del catálogo o escriba el nombre/razón social en el casillero correspondiente.'
       };
-      setAlertError(diag);
       toast.warning(diag.message, {
         title: diag.title,
         rootCause: diag.rootCause,
@@ -526,7 +510,6 @@ export default function SalesOrderManager({
         rootCause: 'No se encontraron filas con descripción o metraje en la tabla de productos.',
         solution: 'Ingrese el código, descripción y metraje solicitado en la tabla de artículos de la venta.'
       };
-      setAlertError(diag);
       toast.warning(diag.message, {
         title: diag.title,
         rootCause: diag.rootCause,
@@ -536,7 +519,6 @@ export default function SalesOrderManager({
     }
 
     setLoading(true);
-    setAlertError(null);
 
     const generatedOrderNo = (editingId && editingOrderNo) ? editingOrderNo : `FV-${Date.now()}`;
 
@@ -580,13 +562,11 @@ export default function SalesOrderManager({
       if (editingId) {
         await updateDoc(doc(db, 'sales_orders', editingId), payload);
         const fullSaved: SalesOrder = { id: editingId, ...payload };
-        setAlertSuccess(`Ficha de Venta ${payload.orderNo} actualizada correctamente.`);
         toast.success(`Ficha de Venta ${payload.orderNo} guardada con éxito`);
         if (shouldPrint) setPrintOrder(fullSaved);
       } else {
         const res = await addDoc(collection(db, 'sales_orders'), payload);
         const fullSaved: SalesOrder = { id: res.id, ...payload };
-        setAlertSuccess(`Ficha de Venta ${payload.orderNo} creada exitosamente.`);
         toast.success(`Ficha de Venta ${payload.orderNo} registrada en el sistema`);
         localStorage.removeItem("texflow_draft_salesorder");
         setIsSuccessfullySaved(true);
@@ -596,14 +576,6 @@ export default function SalesOrderManager({
       }
     } catch (err: any) {
       console.error('Error saving sales order:', err);
-      const diag = analyzeSystemError(err, { action: 'guardar la Ficha de Venta', entity: 'sales_orders' });
-      setAlertError({
-        title: diag.title,
-        message: diag.message,
-        rootCause: diag.rootCause,
-        solution: diag.solution,
-        technicalDetails: diag.technicalDetails
-      });
       toast.diagnose(err, { action: 'guardar la Ficha de Venta', entity: 'sales_orders' });
     } finally {
       setLoading(false);
@@ -656,10 +628,10 @@ export default function SalesOrderManager({
     if (!deleteTarget) return;
     try {
       await deleteDoc(doc(db, 'sales_orders', deleteTarget.id));
-      setAlertSuccess('Ficha de Venta eliminada correctamente.');
+      toast.success('Ficha de Venta eliminada correctamente.');
       setDeleteTarget(null);
-    } catch (err) {
-      setAlertError('Error al eliminar la ficha de venta.');
+    } catch (err: any) {
+      toast.diagnose(err, { action: 'eliminar la ficha de venta', entity: 'sales_orders' });
     }
   };
 
@@ -779,22 +751,6 @@ export default function SalesOrderManager({
           </button>
         </div>
       </div>
-
-      {/* Notifications */}
-      {alertSuccess && (
-        <AlertBanner type="success" message={alertSuccess} onClose={() => setAlertSuccess(null)} />
-      )}
-      {alertError && (
-        <AlertBanner 
-          type="error" 
-          message={typeof alertError === 'string' ? alertError : alertError.message} 
-          title={typeof alertError === 'object' ? alertError.title : undefined}
-          rootCause={typeof alertError === 'object' ? alertError.rootCause : undefined}
-          solution={typeof alertError === 'object' ? alertError.solution : undefined}
-          technicalDetails={typeof alertError === 'object' ? alertError.technicalDetails : undefined}
-          onClose={() => setAlertError(null)} 
-        />
-      )}
 
       {/* VIEW MODE 1: CREATE / EDIT FORM */}
       {viewMode === 'create' && (
@@ -1105,27 +1061,6 @@ export default function SalesOrderManager({
                 />
               </div>
             </div>
-
-            {sunatMsg && (
-              <AlertBanner
-                type={sunatMsg.type}
-                message={
-                  sunatMsg.type === 'error' ? (
-                    <span className="flex items-center gap-2">
-                      {sunatMsg.text}
-                      <button
-                        type="button"
-                        onClick={() => handleConsultSunat()}
-                        className="underline font-bold hover:opacity-80"
-                      >
-                        Reintentar
-                      </button>
-                    </span>
-                  ) : sunatMsg.text
-                }
-                onClose={() => setSunatMsg(null)}
-              />
-            )}
 
             <div className="bg-app-bg/40 p-3 rounded-lg border border-app-border/80">
               <label className="block text-xs font-bold text-app-text/80 mb-1 uppercase tracking-wider flex items-center justify-between">
