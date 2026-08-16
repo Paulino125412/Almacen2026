@@ -333,10 +333,29 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
         const row = flatRows[i];
         const rowH = rowHeights[i] || 24;
 
-        if (currentHeight + rowH > fullPageContentHeight && currentPage.length > 0) {
-          dynamicPages.push(currentPage);
-          currentPage = [];
-          currentHeight = 0;
+        if (row.type === 'header') {
+          // Find the height of the first associated roll to prevent orphan header
+          let nextRollH = 24;
+          for (let k = i + 1; k < flatRows.length; k++) {
+            if (flatRows[k].articleId === row.articleId && flatRows[k].type === 'roll') {
+              nextRollH = rowHeights[k] || 24;
+              break;
+            }
+          }
+
+          // If header + first roll do not fit together in the remaining page space, push to next page
+          if (currentHeight + rowH + nextRollH > fullPageContentHeight && currentPage.length > 0) {
+            dynamicPages.push(currentPage);
+            currentPage = [];
+            currentHeight = 0;
+          }
+        } else {
+          // Normal check for roll and footer
+          if (currentHeight + rowH > fullPageContentHeight && currentPage.length > 0) {
+            dynamicPages.push(currentPage);
+            currentPage = [];
+            currentHeight = 0;
+          }
         }
 
         currentPage.push(row);
@@ -419,6 +438,18 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
             lastPage.push(footerRow);
           }
         });
+
+        // Clean up orphan headers in lastPage if all rolls were moved to overflow
+        for (let j = lastPage.length - 1; j >= 0; j--) {
+          if (lastPage[j].type === 'header') {
+            const artId = lastPage[j].articleId;
+            const hasRolls = lastPage.some(r => r.type === 'roll' && r.articleId === artId);
+            if (!hasRolls) {
+              const [hRow] = lastPage.splice(j, 1);
+              overflowPage.unshift(hRow);
+            }
+          }
+        }
 
         dynamicPages.push(overflowPage);
       }
