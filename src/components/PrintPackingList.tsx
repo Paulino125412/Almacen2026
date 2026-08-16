@@ -963,7 +963,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
         </div>
       </div>
 
-      {/* OFF-SCREEN MEASUREMENT SANDBOX (hidden from user and print, strictly for DOM geometry) */}
+      {/* OFF-SCREEN MEASUREMENT SANDBOX (hidden from user and print, strictly for DOM geometry matching exact A4 print size) */}
       <div 
         ref={measureContainerRef}
         aria-hidden="true"
@@ -972,13 +972,20 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
           position: 'fixed',
           top: -99999,
           left: -99999,
-          width: '768px', // matches max-w-3xl inside container
+          width: '793.7px', // 210mm * 3.779527559 px/mm (exact A4 sheet width)
           visibility: 'hidden',
           opacity: 0,
-          zIndex: -100
+          zIndex: -100,
+          boxSizing: 'border-box'
         }}
       >
-        <div className="px-6 py-4 md:px-8 md:py-6 font-sans">
+        <div 
+          className="font-sans"
+          style={{
+            padding: '45.35px 56.69px', // 12mm top/bottom, 15mm left/right (exact @media print padding)
+            boxSizing: 'border-box'
+          }}
+        >
           {/* Measure Header Section */}
           <div ref={measureHeaderRef}>
             <div className="flex justify-between items-center mb-1">
