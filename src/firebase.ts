@@ -27,14 +27,14 @@ try {
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager()
     }),
-    experimentalAutoDetectLongPolling: true
+    experimentalForceLongPolling: true
   }, firebaseConfig.firestoreDatabaseId);
 } catch (err) {
   console.warn("Failed to initialize Firestore with multi-tab offline cache, falling back to standard initialization:", err);
   try {
     dbInstance = initializeFirestore(app, {
       localCache: persistentLocalCache({}),
-      experimentalAutoDetectLongPolling: true
+      experimentalForceLongPolling: true
     }, firebaseConfig.firestoreDatabaseId);
   } catch (err2) {
     console.warn("Failed to initialize Firestore with single-tab offline cache, falling back to standard getFirestore:", err2);

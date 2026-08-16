@@ -3,6 +3,7 @@ import { PackingList, PackingListItem, Client, Seller, Provider, Article } from 
 import { FileText, Printer, X, AlertTriangle, MessageCircle } from 'lucide-react';
 
 const ROWS_PER_PAGE = 32;
+const ROWS_PER_LAST_PAGE = 18;
 
 export interface PrintableRow {
   type: 'header' | 'roll' | 'footer';
@@ -129,6 +130,52 @@ export function getPaginatedBlocks(groupedItems: Record<string, PackingListItem[
         }
       }
     }
+  }
+
+  // If the final block has more rolls than can safely share a page with the
+  // Totales + Aviso Importante footer, push the overflow into a new trailing block.
+  while (true) {
+    const lastBlock = blocks[blocks.length - 1];
+    const lastBlockRollCount = lastBlock.filter(r => r.type === 'roll').length;
+    if (lastBlockRollCount <= ROWS_PER_LAST_PAGE || lastBlock.length === 0) break;
+
+    const overflowBlock: PrintableRow[] = [];
+    let rollsToMove = lastBlockRollCount - ROWS_PER_LAST_PAGE;
+
+    while (rollsToMove > 0) {
+      let idx = -1;
+      for (let j = lastBlock.length - 1; j >= 0; j--) {
+        if (lastBlock[j].type === 'roll') { idx = j; break; }
+      }
+      if (idx === -1) break;
+
+      const rollRow = lastBlock[idx];
+      lastBlock.splice(idx, 1);
+      overflowBlock.unshift(rollRow);
+      rollsToMove--;
+
+      const articleId = rollRow.articleId;
+      const remainingRollsOfArticle = lastBlock.filter(
+        r => r.type === 'roll' && r.articleId === articleId
+      ).length;
+
+      if (remainingRollsOfArticle === 0) {
+        const headerIdx = lastBlock.findIndex(r => r.type === 'header' && r.articleId === articleId);
+        if (headerIdx !== -1) {
+          const headerRow = lastBlock[headerIdx];
+          lastBlock.splice(headerIdx, 1);
+          overflowBlock.unshift(headerRow);
+        }
+        const footerIdx = lastBlock.findIndex(r => r.type === 'footer' && r.articleId === articleId);
+        if (footerIdx !== -1) {
+          const footerRow = lastBlock[footerIdx];
+          lastBlock.splice(footerIdx, 1);
+          overflowBlock.push(footerRow);
+        }
+      }
+    }
+
+    blocks.push(overflowBlock);
   }
 
   return blocks;

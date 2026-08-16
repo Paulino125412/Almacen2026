@@ -270,9 +270,11 @@ export default function App() {
           const list: Client[] = [];
           snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id } as Client));
           setClients(list);
-        }, (error) => {
+        }, (error: any) => {
           console.error("Firestore Clients error:", error);
-          triggerFallback("Clients Permission Denied / Error");
+          if (error?.code === 'permission-denied') {
+            triggerFallback("Clients Permission Denied / Error");
+          }
         });
         unsubs.push(unsubClients);
 
@@ -280,9 +282,11 @@ export default function App() {
           const list: Seller[] = [];
           snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id } as Seller));
           setSellers(list);
-        }, (error) => {
+        }, (error: any) => {
           console.error("Firestore Sellers error:", error);
-          triggerFallback("Sellers Permission Denied / Error");
+          if (error?.code === 'permission-denied') {
+            triggerFallback("Sellers Permission Denied / Error");
+          }
         });
         unsubs.push(unsubSellers);
 
@@ -290,9 +294,11 @@ export default function App() {
           const list: Provider[] = [];
           snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id } as Provider));
           setProviders(list);
-        }, (error) => {
+        }, (error: any) => {
           console.error("Firestore Providers error:", error);
-          triggerFallback("Providers Permission Denied / Error");
+          if (error?.code === 'permission-denied') {
+            triggerFallback("Providers Permission Denied / Error");
+          }
         });
         unsubs.push(unsubProviders);
 
@@ -300,9 +306,11 @@ export default function App() {
           const list: Article[] = [];
           snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id } as Article));
           setArticles(list);
-        }, (error) => {
+        }, (error: any) => {
           console.error("Firestore Articles error:", error);
-          triggerFallback("Articles Permission Denied / Error");
+          if (error?.code === 'permission-denied') {
+            triggerFallback("Articles Permission Denied / Error");
+          }
         });
         unsubs.push(unsubArticles);
 
@@ -310,9 +318,11 @@ export default function App() {
           const list: PackingList[] = [];
           snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id } as PackingList));
           setPackingLists(list);
-        }, (error) => {
+        }, (error: any) => {
           console.error("Firestore Packinglists error:", error);
-          triggerFallback("Packinglists Permission Denied / Error");
+          if (error?.code === 'permission-denied') {
+            triggerFallback("Packinglists Permission Denied / Error");
+          }
         });
         unsubs.push(unsubPackingLists);
 
