@@ -499,16 +499,51 @@ export default function SalesOrderManager({
       return;
     }
 
-    const validItems = items.filter(
-      i => i.description.trim() !== '' || i.code.trim() !== '' || (Number(i.requestedQty) || 0) > 0
+    // Identify truly empty rows (all fields empty or zero)
+    const isRowEmpty = (i: SalesOrderItem) => {
+      const hasCode = (i.code || '').trim() !== '';
+      const hasDesc = (i.description || '').trim() !== '';
+      const hasReqQty = (Number(i.requestedQty) || 0) > 0;
+      const hasDispQty = (Number(i.dispatchedQty) || 0) > 0;
+      const hasPrice = (Number(i.unitPrice) || 0) > 0;
+      const hasTotal = (Number(i.totalAmount) || 0) > 0;
+      return !hasCode && !hasDesc && !hasReqQty && !hasDispQty && !hasPrice && !hasTotal;
+    };
+
+    // Rows that have any data at all
+    const filledRows = items.filter(i => !isRowEmpty(i));
+
+    // Valid items must have description/code to be saved as an actual product item
+    const validItems = filledRows.filter(
+      i => (i.description || '').trim() !== '' || (i.code || '').trim() !== ''
     );
+
+    // Incomplete rows: have quantity, price or total amount but lack both description and code
+    const incompleteRows = filledRows.filter(
+      i => (i.description || '').trim() === '' && (i.code || '').trim() === ''
+    );
+
+    if (incompleteRows.length > 0) {
+      const diag = {
+        title: 'Filas Incompletas',
+        message: `Hay ${incompleteRows.length} fila(s) con precio o cantidad pero sin artículo/descripción. Por favor asigne el producto o complete la descripción antes de guardar.`,
+        rootCause: 'Se ingresó cantidad solicitada/precio unitario en una fila pero se dejó la descripción y código en blanco.',
+        solution: 'Seleccione el artículo del catálogo o ingrese la descripción para cada fila con metraje/precio cargado.'
+      };
+      toast.warning(diag.message, {
+        title: diag.title,
+        rootCause: diag.rootCause,
+        solution: diag.solution
+      });
+      return;
+    }
 
     if (validItems.length === 0) {
       const diag = {
         title: 'Artículos Requeridos',
-        message: 'Por favor ingrese al menos un artículo o producto.',
-        rootCause: 'No se encontraron filas con descripción o metraje en la tabla de productos.',
-        solution: 'Ingrese el código, descripción y metraje solicitado en la tabla de artículos de la venta.'
+        message: 'Por favor ingrese al menos un artículo o producto con su descripción.',
+        rootCause: 'No se encontraron filas válidas en la tabla de productos.',
+        solution: 'Ingrese el código o descripción, metraje solicitado y precio en la tabla de artículos de la venta.'
       };
       toast.warning(diag.message, {
         title: diag.title,
