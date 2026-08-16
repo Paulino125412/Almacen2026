@@ -459,6 +459,7 @@ export default function App() {
             providers={providers}
             articles={articles}
             packingLists={packingLists}
+            inventory={inventory}
             onRefresh={handleForceRefresh}
             initialTab={catalogInitialTab}
             initialSearchQuery={catalogSearchQuery}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Client, Seller, Provider, Article, PackingList } from '../types';
+import { Client, Seller, Provider, Article, PackingList, RollItem } from '../types';
 import { db, addDoc, updateDoc, deleteDoc } from '../firebase';
 import { collection, doc } from 'firebase/firestore';
 import { Plus, Edit2, Trash2, Users, Briefcase, Truck, Layers, Check, X, Search, FileSpreadsheet, Building, Loader2 } from 'lucide-react';
@@ -15,6 +15,7 @@ interface CatalogManagerProps {
   providers: Provider[];
   articles: Article[];
   packingLists: PackingList[];
+  inventory: RollItem[];
   onRefresh: () => Promise<void>;
   initialTab?: CatalogTab;
   initialSearchQuery?: string;
@@ -28,6 +29,7 @@ export default function CatalogManager({
   providers,
   articles,
   packingLists,
+  inventory,
   onRefresh,
   initialTab,
   initialSearchQuery
@@ -468,22 +470,40 @@ export default function CatalogManager({
 
   const handleDelete = async (tab: CatalogTab, id: string) => {
     let count = 0;
+    const dependencyDetails: string[] = [];
+
     if (tab === 'clients') {
-      count = packingLists.filter(pl => pl.clientId === id).length;
+      const plCount = packingLists.filter(pl => pl.clientId === id).length;
+      count = plCount;
+      if (plCount > 0) dependencyDetails.push(`${plCount} Packing List(s)`);
     } else if (tab === 'sellers') {
-      count = packingLists.filter(pl => pl.sellerId === id).length;
+      const plCount = packingLists.filter(pl => pl.sellerId === id).length;
+      count = plCount;
+      if (plCount > 0) dependencyDetails.push(`${plCount} Packing List(s)`);
     } else if (tab === 'providers') {
-      count = packingLists.filter(pl => pl.items?.some(item => item.providerId === id)).length;
+      const plCount = packingLists.filter(pl => pl.items?.some(item => item.providerId === id)).length;
+      const artCount = articles.filter(art => art.providerId === id).length;
+      const invCount = inventory.filter(r => r.providerId === id).length;
+      count = plCount + artCount + invCount;
+      if (plCount > 0) dependencyDetails.push(`${plCount} Packing List(s)`);
+      if (artCount > 0) dependencyDetails.push(`${artCount} Artículo(s) en catálogo`);
+      if (invCount > 0) dependencyDetails.push(`${invCount} Rollo(s) en inventario`);
     } else if (tab === 'articles') {
-      count = packingLists.filter(pl => pl.items?.some(item => item.articleId === id)).length;
+      const plCount = packingLists.filter(pl => pl.items?.some(item => item.articleId === id)).length;
+      const invCount = inventory.filter(r => r.articleId === id).length;
+      count = plCount + invCount;
+      if (plCount > 0) dependencyDetails.push(`${plCount} Packing List(s)`);
+      if (invCount > 0) dependencyDetails.push(`${invCount} Rollo(s) en inventario`);
     }
 
     if (count > 0) {
+      const entityLabel = tab === 'clients' ? 'cliente' : tab === 'sellers' ? 'vendedor' : tab === 'providers' ? 'proveedor' : 'artículo';
+      const depsText = dependencyDetails.join(', ');
       const diag = {
         title: 'Integridad Referencial Protegida',
-        message: `No se puede eliminar este registro porque está asociado a ${count} Packing List(s).`,
-        rootCause: `Existen documentos de despacho históricos que dependen de este ${tab === 'clients' ? 'cliente' : tab === 'sellers' ? 'vendedor' : tab === 'providers' ? 'proveedor' : 'artículo'}.`,
-        solution: 'Para eliminarlo, primero reasigne o desvincule los Packing Lists que hacen referencia a este registro.'
+        message: `No se puede eliminar este ${entityLabel} porque tiene registros activos asociados: ${depsText}.`,
+        rootCause: `Existen dependencias activas (${depsText}) que requieren la existencia de este ${entityLabel}.`,
+        solution: `Para eliminarlo, primero reasigne o elimine los ${depsText} asociados a este registro.`
       };
       setError(diag);
       toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
