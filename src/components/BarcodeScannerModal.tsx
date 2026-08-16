@@ -117,7 +117,7 @@ export default function BarcodeScannerModal({
       return kvResult;
     }
 
-    // 3. Try comma/semicolon/hyphen separated structured format (e.g. R-101, 45.5, LOTE-01)
+    // 3. Try comma/semicolon/hyphen separated structured format (e.g. 1024, 45.5, LOTE-01 or R-101, 100, LOTE-01)
     const parts = trimmed.split(/[\t,;|\n]+/).map(p => p.trim()).filter(Boolean);
     if (parts.length > 1) {
       const sepResult: any = {};
@@ -128,12 +128,18 @@ export default function BarcodeScannerModal({
       let tonoCandidate = '';
 
       parts.forEach((p) => {
-        const isNum = !isNaN(Number(p)) && p.includes('.');
+        const isDecimalNum = !isNaN(Number(p)) && p.includes('.');
         const isPlainNum = !isNaN(Number(p));
-        if ((isNum || (isPlainNum && metersCandidate === null)) && metersCandidate === null) {
+
+        if (isDecimalNum && metersCandidate === null) {
+          // If it has decimal point (e.g. 45.5), it is definitely meters
           metersCandidate = Number(p);
         } else if (!rollNumCandidate) {
+          // First non-decimal item (or plain integer like 1024) is the roll number
           rollNumCandidate = p;
+        } else if (isPlainNum && metersCandidate === null) {
+          // If roll number is already assigned and we encounter another number (e.g. 100), it's meters
+          metersCandidate = Number(p);
         } else if (!lotCandidate) {
           lotCandidate = p;
         } else if (!partidaCandidate) {
