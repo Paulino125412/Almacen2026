@@ -3,7 +3,7 @@ import { PackingList, PackingListItem, Client, Seller, Provider, Article } from 
 import { FileText, Printer, X, AlertTriangle, MessageCircle } from 'lucide-react';
 
 const ROWS_PER_PAGE = 32;
-const ROWS_PER_LAST_PAGE = 18;
+const ROWS_PER_LAST_PAGE = 21;
 
 export interface PrintableRow {
   type: 'header' | 'roll' | 'footer';
@@ -777,41 +777,6 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
                   {paginatedBlocks.map((block, pageIdx) => (
                     <PaginatedSinglePrintPage
                       key={`cli-${pageIdx}`}
-                      title="PACKING LIST"
-                      packingList={packingList}
-                      client={client}
-                      seller={seller}
-                      block={block}
-                      getArticleName={getArticleName}
-                      totalRolls={totalRolls}
-                      totalMeters={totalMeters}
-                      providers={providers}
-                      isLastPage={pageIdx === paginatedBlocks.length - 1}
-                      bottomContent={
-                        <div className="aviso-importante mt-4 border border-app-border rounded-lg p-2.5 bg-app-surface text-app-text print:text-black print:border-black print:bg-white">
-                          <h3 className="text-[10px] font-black uppercase tracking-widest text-app-primary mb-1.5 text-center border-b border-app-border pb-0.5 py-0.5 rounded print:text-black print:border-black">
-                            AVISO IMPORTANTE
-                          </h3>
-                          <div className="text-[8px] font-medium leading-normal uppercase">
-                            <p className="mb-1">
-                              1. EL CLIENTE DEBERÁ <strong className="font-extrabold">FOLIAR O NUMERAR</strong> LAS CAPAS TENDIDAS DE TELA, INDEPENDIENTEMENTE DE QUE SEA O NO DEL MISMO LOTE. ELLO, PARA CONSTATAR EL COLOR Y ENCOGIMIENTO DE LA MERCANCÍA.
-                            </p>
-                            <p className="mb-1">
-                              2. <strong className="font-extrabold">NO CORTE</strong> EL ROLLO ANTES DE COMPROBAR: CALIDAD, CANTIDAD DE METRAJE, SOLIDEZ DE COLOR, ETC.
-                            </p>
-                            <p className="font-black text-center pt-1 border-t border-app-border print:border-black">
-                              DE NO CUMPLIR EL CLIENTE CON LOS 2 PUNTOS SEÑALADOS ANTERIORMENTE, ABSTENERSE DE RECLAMOS. GRACIAS POR SU COOPERACIÓN.
-                            </p>
-                          </div>
-                        </div>
-                      }
-                    />
-                  ))}
-
-                  {/* COPY 2: WAREHOUSE COPY / COPIA CARGO */}
-                  {paginatedBlocks.map((block, pageIdx) => (
-                    <PaginatedSinglePrintPage
-                      key={`war-${pageIdx}`}
                       title="PACKING LIST"
                       packingList={packingList}
                       client={client}
