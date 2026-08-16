@@ -404,6 +404,27 @@ export default function CatalogManager({
           setLoading(false);
           return;
         }
+
+        // Validación de RUC/DNI Único
+        const normalizedCliDni = cliDni.trim().toLowerCase().replace(/\s+/g, '');
+        const duplicateClient = clients.find(c => {
+          if (editingId && c.id === editingId) return false;
+          const existingDni = (c.dni || '').trim().toLowerCase().replace(/\s+/g, '');
+          return existingDni !== '' && existingDni === normalizedCliDni;
+        });
+
+        if (duplicateClient) {
+          const diag = {
+            title: 'Documento de Identidad Duplicado',
+            message: `Ya existe un cliente registrado con el RUC/DNI '${cliDni.trim()}': ${duplicateClient.name}. Verifique si es el mismo cliente antes de crear un registro duplicado.`,
+            rootCause: `El RUC/DNI ingresado ya está asignado al cliente '${duplicateClient.name}' en la base de datos.`,
+            solution: 'Utilice el cliente ya existente o verifique que el número de documento digitado sea el correcto.'
+          };
+          setError(diag);
+          toast.warning(diag.message, { title: diag.title, rootCause: diag.rootCause, solution: diag.solution });
+          setLoading(false);
+          return;
+        }
       } else if (activeTab === 'sellers') {
         if (!selName.trim()) {
           const diag = {
