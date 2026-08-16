@@ -106,6 +106,30 @@ export default function PrintPackingList({
   const totalMeters = packingList.items.reduce((acc, item) => acc + Number(item.meters || 0), 0);
   const totalRolls = packingList.items.length;
 
+  const firstItemProviderId = packingList.items[0]?.providerId;
+  const activeProvider = providers.find(p => p.id === firstItemProviderId) || null;
+
+  const showLot = activeProvider ? activeProvider.hasLot : true;
+  const showPartida = activeProvider ? activeProvider.hasPartida : true;
+  const hasRollNo = activeProvider ? activeProvider.hasRollNo : false;
+  const hasTono = activeProvider ? !!activeProvider.hasTono : false;
+  const hasWidth = activeProvider ? !!activeProvider.hasWidth : false;
+  const hasWeight = activeProvider ? !!activeProvider.hasWeight : false;
+
+  const colSpanHeader = 2 
+    + (showLot ? 1 : 0) 
+    + (showPartida ? 1 : 0) 
+    + (hasTono ? 1 : 0)
+    + (hasWidth ? 1 : 0)
+    + (hasWeight ? 1 : 0);
+
+  const colSpanSummary = 1 
+    + (showLot ? 1 : 0) 
+    + (showPartida ? 1 : 0) 
+    + (hasTono ? 1 : 0)
+    + (hasWidth ? 1 : 0)
+    + (hasWeight ? 1 : 0);
+
   // Active View Tab: 'packing_list' or 'guia_remision'
   const [activeView, setActiveView] = React.useState<'packing_list' | 'guia_remision'>('packing_list');
 
@@ -485,7 +509,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
     } catch (e) {
       console.warn("Layout measurement fallback:", e);
     }
-  }, [flatRows, articles, packingList]);
+  }, [flatRows, articles, packingList, providers]);
 
   return (
     <div id="print-section" className="fixed inset-0 bg-app-bg/75 backdrop-blur-xs z-50 overflow-y-auto p-4 md:p-6 flex justify-center items-start print-overlay-container">
@@ -980,9 +1004,14 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
           <table className="w-full text-left border-collapse border-b border-app-border text-xs mb-4">
             <thead>
               <tr className="border-b-2 border-app-border text-[10px] uppercase font-bold tracking-wider">
-                <th className="py-1 px-1 w-2/5">ITEM</th>
-                <th className="py-1 px-1 text-center w-24">LOTE</th>
-                <th className="py-1 px-1 text-center w-28">PARTIDA</th>
+                <th className="py-1 px-1 w-2/5">
+                  {hasRollNo ? 'Nº ROLLO' : 'ITEM'}
+                </th>
+                {showLot && <th className="py-1 px-1 text-center w-24">LOTE</th>}
+                {showPartida && <th className="py-1 px-1 text-center w-28">PARTIDA</th>}
+                {hasTono && <th className="py-1 px-1 text-center w-20">TONO</th>}
+                {hasWidth && <th className="py-1 px-1 text-center w-20">ANCHO</th>}
+                {hasWeight && <th className="py-1 px-1 text-center w-20">PESO</th>}
                 <th className="py-1 px-1 text-right w-32">METRAJE</th>
               </tr>
             </thead>
@@ -991,7 +1020,7 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
                 if (row.type === 'header') {
                   return (
                     <tr key={`m-h-${idx}`} data-row-index={idx} className="border-b border-app-border font-bold">
-                      <td colSpan={4} className="py-1 px-1 uppercase text-[11px] font-bold">
+                      <td colSpan={colSpanHeader} className="py-1 px-1 uppercase text-[11px] font-bold">
                         {row.articleName}
                       </td>
                     </tr>
@@ -1001,17 +1030,20 @@ Total Metros: ${totalMeters.toFixed(2)} m`;
                   return (
                     <tr key={`m-r-${idx}`} data-row-index={idx} className="border-b border-app-border/40">
                       <td className="py-1 px-1 font-mono text-[10.5px] pl-3 font-bold">
-                        {(row.index ?? 0) + 1}
+                        {hasRollNo ? (item.rollNumber || '-') : ((row.index ?? 0) + 1)}
                       </td>
-                      <td className="py-1 px-1 text-center font-mono text-[11px]">{item.lot || '-'}</td>
-                      <td className="py-1 px-1 text-center font-mono text-[11px]">{item.partida || '-'}</td>
+                      {showLot && <td className="py-1 px-1 text-center font-mono text-[11px]">{item.lot || '-'}</td>}
+                      {showPartida && <td className="py-1 px-1 text-center font-mono text-[11px]">{item.partida || '-'}</td>}
+                      {hasTono && <td className="py-1 px-1 text-center font-mono text-[11px] font-bold uppercase">{item.tono || '-'}</td>}
+                      {hasWidth && <td className="py-1 px-1 text-center font-mono text-[11px]">{item.width ? `${item.width} m` : '-'}</td>}
+                      {hasWeight && <td className="py-1 px-1 text-center font-mono text-[11px]">{item.weight ? `${item.weight} kg` : '-'}</td>}
                       <td className="py-1 px-1 text-right font-mono font-bold text-[11px]">{Number(item.meters).toFixed(2)} m</td>
                     </tr>
                   );
                 } else if (row.type === 'footer') {
                   return (
                     <tr key={`m-f-${idx}`} data-row-index={idx} className="border-b-2 border-app-border font-bold text-[11px]">
-                      <td colSpan={3} className="py-1.5 px-1 uppercase text-right font-bold">
+                      <td colSpan={colSpanSummary} className="py-1.5 px-1 uppercase text-right font-bold">
                         {row.articleName} -- Cantidad: {row.groupLength} | Total:
                       </td>
                       <td className="py-1.5 px-1 text-right font-mono font-black">
